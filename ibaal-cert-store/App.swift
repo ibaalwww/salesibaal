@@ -212,6 +212,13 @@ struct SaleItem: Identifiable, Codable, Hashable {
     }
 }
 
+// MARK: - Struktur Data Cadangan Lengkap dengan Modal & Fee
+struct BackupPayload: Codable {
+    var items: [SaleItem]
+    var batchModals: [String: Int]
+    var batchAdminFees: [String: Int]
+}
+
 enum FilterGaransi: String, CaseIterable, Identifiable {
     case semua = "Semua"
     case aktif = "Aktif"
@@ -567,7 +574,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
                             
-                            // 2. Tampilkan/Sembunyikan Saldo (Eye Button dipindah ke sini)
+                            // 2. Tombol Sensor Saldo (Pindah ke bawah arsip)
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     hideFinancials.toggle()
@@ -584,7 +591,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
-                            // 3. Edit Modal Kloter Aktif
+                            // 3. Ubah Modal & Fee Admin
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showEditBatchModal = true
@@ -601,7 +608,7 @@ struct ContentView: View {
 
                             Divider().background(Color.white.opacity(0.15))
 
-                            // 4. Cadangkan Data
+                            // 4. Cadangkan Data (Backup)
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 exportBackup()
@@ -616,7 +623,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
-                            // 5. Pulihkan Data
+                            // 5. Pulihkan Data (Restore)
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showFileImporter = true
@@ -741,7 +748,7 @@ struct ContentView: View {
                 }
             }
             
-            // Text Absolute di tengah
+            // Judul tepat di tengah
             Text("i B a a L CERT STORE")
                 .font(.mali(19))
                 .foregroundColor(.white)
@@ -1155,9 +1162,14 @@ struct ContentView: View {
 
     private func exportBackup() {
         do {
+            let modals = UserDefaults.standard.dictionary(forKey: "saved_batch_modals") as? [String: Int] ?? [:]
+            let fees = UserDefaults.standard.dictionary(forKey: "saved_batch_admin_fees") as? [String: Int] ?? [:]
+            
+            let payload = BackupPayload(items: items, batchModals: modals, batchAdminFees: fees)
+            
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
-            let data = try encoder.encode(items)
+            let data = try encoder.encode(payload)
 
             let df = DateFormatter()
             df.dateFormat = "yyyyMMdd_HHmmss"
@@ -1180,11 +1192,21 @@ struct ContentView: View {
             defer { if canAccess { fileURL.stopAccessingSecurityScopedResource() } }
 
             let data = try Data(contentsOf: fileURL)
-            let importedItems = try JSONDecoder().decode([SaleItem].self, from: data)
+            
+            if let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) {
+                items = payload.items
+                UserDefaults.standard.set(payload.batchModals, forKey: "saved_batch_modals")
+                UserDefaults.standard.set(payload.batchAdminFees, forKey: "saved_batch_admin_fees")
+                recalculateAndSave()
+                alertMessage = "Sukses! Berhasil memulihkan \(payload.items.count) transaksi beserta data modal & fee admin."
+            } else if let importedItems = try? JSONDecoder().decode([SaleItem].self, from: data) {
+                items = importedItems
+                recalculateAndSave()
+                alertMessage = "Sukses! Berhasil memulihkan \(importedItems.count) transaksi."
+            } else {
+                throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Format berkas tidak valid"])
+            }
 
-            items = importedItems
-            recalculateAndSave()
-            alertMessage = "Sukses! Berhasil memulihkan \(importedItems.count) transaksi."
             forceRefresh = UUID()
             showAlert = true
         } catch {
@@ -1659,7 +1681,7 @@ struct BatchHistorySheet: View {
                                             .foregroundColor(.yellow)
                                             
                                         Text("Keuntungan: \(hideFinancials ? "••••" : AppFormatters.idr((omset - modal) - fee))")
-                                            .font(.mali(15)) // Font lebih besar sedikit
+                                            .font(.mali(15))
                                             .foregroundColor(.green)
                                             .padding(.top, 3)
                                     }
