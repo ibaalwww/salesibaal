@@ -196,7 +196,6 @@ struct SaleItem: Identifiable, Codable, Hashable {
 
     var hasCertZip: Bool { zipFileName != nil }
 
-    // Properti ini dikalkulasi sekali dan aman untuk dirender berulang kali
     var displayName: String {
         let trimNama = namaBuyer.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimNama.isEmpty && trimNama != "-" { return trimNama }
@@ -412,7 +411,6 @@ struct ContentView: View {
     @State private var alertMessage = ""
     @State private var showAlert = false
 
-    // State untuk memicu pembaruan UI saat modal/fee diubah
     @State private var forceRefresh = UUID()
 
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -469,18 +467,14 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // Latar Belakang Penuh Edge-to-Edge
-            Color(red: 0.04, green: 0.04, blue: 0.07)
-                .ignoresSafeArea()
+            Color(red: 0.04, green: 0.04, blue: 0.07).ignoresSafeArea()
 
-            // Glow Cyan Atas (Area Notch)
             Circle()
                 .fill(Color.cyan.opacity(0.30))
                 .frame(width: 320, height: 320)
                 .blur(radius: 100)
                 .offset(x: -120, y: -320)
 
-            // Glow Ungu Bawah (Area Home Bar)
             Circle()
                 .fill(Color.purple.opacity(0.25))
                 .frame(width: 300, height: 300)
@@ -488,17 +482,13 @@ struct ContentView: View {
                 .offset(x: 130, y: 320)
 
             VStack(spacing: 8) {
-                // Header 1 Baris Presisi
                 customTopBar
-
-                // Search Bar Liquid Glass Ramping
                 customSearchBar
 
-                // Area Konten Scrollable
                 ScrollView {
                     VStack(spacing: 12) {
                         summaryDashboardView
-                            .id(forceRefresh) // Force UI update jika UUID berubah
+                            .id(forceRefresh)
 
                         LiquidPrismSwitch(selected: $selectedFilter)
 
@@ -549,7 +539,6 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-            // Dropdown Menu 3 Titik
             if showOptionsMenu {
                 Color.black.opacity(0.45)
                     .ignoresSafeArea()
@@ -576,6 +565,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
+                            // Edit Modal Kloter AKTIF (Diakses lewat menu ... di atas kiri)
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showEditBatchModal = true
@@ -665,7 +655,7 @@ struct ContentView: View {
             )
         }
         .sheet(isPresented: $showEditBatchModal) {
-            // Memastikan data yang di-pass ke sheet adalah data terbaru
+            // Memanggil khusus untuk Kloter Aktif
             EditBatchModalSheet(
                 batchNumber: activeBatchNumber,
                 currentModal: BatchModalManager.shared.getModal(for: activeBatchNumber),
@@ -673,13 +663,10 @@ struct ContentView: View {
             ) { updatedModal, updatedFee in
                 BatchModalManager.shared.setModal(for: activeBatchNumber, modal: updatedModal)
                 BatchAdminFeeManager.shared.setFee(for: activeBatchNumber, fee: updatedFee)
-                
-                // Pancing SwiftUI agar merender ulang dashboard setelah fee diubah
                 forceRefresh = UUID()
             }
         }
         .sheet(isPresented: $showHistoryModal) {
-            // Memastikan array yang di-pass adalah array terbaru dan ter-refresh
             BatchHistorySheet(allItems: items, hideFinancials: hideFinancials)
         }
         .sheet(isPresented: $showShareSheet) {
@@ -703,7 +690,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Baris Header Presisi 1 Baris
     private var customTopBar: some View {
         HStack(spacing: 12) {
             Button {
@@ -757,7 +743,6 @@ struct ContentView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Kotak Pencarian Ramping
     private var customSearchBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
@@ -829,7 +814,6 @@ struct ContentView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Dashboard Ramping Terpadu
     private var summaryDashboardView: some View {
         VStack(spacing: 7) {
             HStack {
@@ -1194,10 +1178,7 @@ struct ContentView: View {
             items = importedItems
             recalculateAndSave()
             alertMessage = "Sukses! Berhasil memulihkan \(importedItems.count) transaksi."
-            
-            // Force refresh UI agar setelan modal & admin termuat ulang
             forceRefresh = UUID()
-            
             showAlert = true
         } catch {
             alertMessage = "Gagal memulihkan berkas JSON."
@@ -1221,7 +1202,7 @@ struct ContentView: View {
             UserDefaults.standard.set(encoded, forKey: "saved_sales")
         }
         AutoSaveManager.shared.save(items)
-        forceRefresh = UUID() // Paksa antarmuka merender ulang setiap ada data baru
+        forceRefresh = UUID()
     }
 
     private func loadData() {
@@ -1577,11 +1558,19 @@ struct EditBatchModalSheet: View {
     }
 }
 
+// MARK: - Helper Identifiable untuk Sheet Edit Arsip
+struct EditableBatch: Identifiable {
+    let id: Int
+}
+
 // MARK: - Arsip Kloter Selesai
 struct BatchHistorySheet: View {
     @Environment(\.dismiss) var dismiss
     var allItems: [SaleItem]
     var hideFinancials: Bool
+
+    @State private var forceRefresh = UUID()
+    @State private var batchToEdit: EditableBatch? = nil
 
     var completedBatches: [Int] {
         let count = allItems.count / 5
@@ -1628,6 +1617,23 @@ struct BatchHistorySheet: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 HStack {
                                     Text("Kloter #\(b)").font(.mali(13))
+                                    
+                                    // Tombol Edit Khusus untuk Kloter Arsip yang sudah selesai
+                                    Button {
+                                        batchToEdit = EditableBatch(id: b)
+                                    } label: {
+                                        HStack(spacing: 3) {
+                                            Image(systemName: "pencil")
+                                            Text("Edit Modal")
+                                        }
+                                        .font(.mali(9))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .background(Color.cyan.opacity(0.15))
+                                        .foregroundColor(.cyan)
+                                        .cornerRadius(4)
+                                    }
+
                                     Spacer()
                                     Text("5/5 Selesai ✅").font(.mali(9)).foregroundColor(.green)
                                 }
@@ -1643,7 +1649,6 @@ struct BatchHistorySheet: View {
                                         .foregroundColor(.cyan)
                                 }
                                 
-                                // Memperbaiki bug nama yang hilang: Membaca langsung dari array item
                                 VStack(spacing: 4) {
                                     ForEach(bItems, id: \.id) { item in
                                         HStack {
@@ -1669,6 +1674,7 @@ struct BatchHistorySheet: View {
                         }
                     }
                     .padding(.vertical, 8)
+                    .id(forceRefresh) // Memastikan layar arsip menyegarkan kalkulasi saat ada perubahan
                 }
             }
             .navigationTitle("Arsip Kloter")
@@ -1676,6 +1682,18 @@ struct BatchHistorySheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Tutup") { dismiss() }.font(.mali(12)).foregroundColor(.cyan)
+                }
+            }
+            .sheet(item: $batchToEdit) { eb in
+                // Memanggil Form Modal & Admin khusus untuk ID Kloter Arsip
+                EditBatchModalSheet(
+                    batchNumber: eb.id,
+                    currentModal: BatchModalManager.shared.getModal(for: eb.id),
+                    currentAdminFee: BatchAdminFeeManager.shared.getFee(for: eb.id)
+                ) { updatedModal, updatedFee in
+                    BatchModalManager.shared.setModal(for: eb.id, modal: updatedModal)
+                    BatchAdminFeeManager.shared.setFee(for: eb.id, fee: updatedFee)
+                    forceRefresh = UUID() // Refresh layar arsip otomatis setelah simpan
                 }
             }
         }
