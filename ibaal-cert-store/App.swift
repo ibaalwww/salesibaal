@@ -1805,7 +1805,7 @@ struct SaleFormSheet: View {
                     zipFileName = CertStorageManager.shared.saveZip(from: url, for: itemId)
                 }
             }
-            .alert("⚠️️ UDID Sudah Terdaftar!", isPresented: $showDuplicateAlert) {
+            .alert("⚠️ UDID Sudah Terdaftar!", isPresented: $showDuplicateAlert) {
                 Button("Batal (Cek Ulang)", role: .cancel) {
                     pendingItemToSave = nil
                 }
