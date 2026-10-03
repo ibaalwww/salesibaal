@@ -20,52 +20,82 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Setup Full Screen Assets & Configs (Fix Letterbox)
+      - name: 🔥 Fix Full Screen (Script Nuklir) 🔥
         run: |
-          # 1. Buat folder Assets.xcassets dan AppIcon kosong agar iOS mendeteksi ini sebagai aplikasi modern
-          mkdir -p ibaal-cert-store/Assets.xcassets/AppIcon.appiconset
-          cat << 'EOF' > ibaal-cert-store/Assets.xcassets/AppIcon.appiconset/Contents.json
+          # 1. Bikin Warna Background Hitam Resmi untuk LaunchScreen
+          mkdir -p ibaal-cert-store/Assets.xcassets/LaunchColor.colorset
+          cat << 'EOF' > ibaal-cert-store/Assets.xcassets/LaunchColor.colorset/Contents.json
           {
-            "images" : [],
-            "info" : { "author" : "xcode", "version" : 1 }
+            "colors": [ { "color": { "color-space": "srgb", "components": { "alpha": "1.000", "blue": "0.04", "green": "0.04", "red": "0.04" } }, "idiom": "universal" } ],
+            "info": { "author": "xcode", "version": 1 }
           }
           EOF
           
-          # 2. Buat file LaunchScreen.storyboard fisik untuk merender layar penuh
-          cat << 'EOF' > ibaal-cert-store/LaunchScreen.storyboard
+          # 2. Paksa Info.plist menggunakan LaunchColor
+          cat << 'EOF' > ibaal-cert-store/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
-          <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
-              <device id="retina6_12" orientation="portrait" appearance="dark"/>
-              <dependencies>
-                  <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
-                  <capability name="Safe area layout guides" minToolsVersion="9.0"/>
-                  <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
-              </dependencies>
-              <scenes>
-                  <scene sceneID="EHf-IW-A2E">
-                      <objects>
-                          <viewController id="01J-lp-oVM" sceneMemberID="viewController">
-                              <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
-                                  <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
-                                  <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                                  <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
-                                  <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-                              </view>
-                          </viewController>
-                          <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
-                      </objects>
-                      <point key="canvasLocation" x="53" y="375"/>
-                  </scene>
-              </scenes>
-          </document>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>$(EXECUTABLE_NAME)</string>
+              <key>CFBundleIdentifier</key>
+              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleName</key>
+              <string>$(PRODUCT_NAME)</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>3</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UIAppFonts</key>
+              <array>
+                  <string>Mali-Bold.ttf</string>
+              </array>
+              <key>UILaunchScreen</key>
+              <dict>
+                  <key>UIColorName</key>
+                  <string>LaunchColor</string>
+              </dict>
+              <key>UIRequiredDeviceCapabilities</key>
+              <array>
+                  <string>arm64</string>
+              </array>
+              <key>UISupportedInterfaceOrientations</key>
+              <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+              </array>
+          </dict>
+          </plist>
           EOF
-
-          # 3. Hapus UILaunchScreen lama dan paksa iOS menggunakan Storyboard Layar Penuh
-          /usr/libexec/PlistBuddy -c "Delete :UILaunchScreen" ibaal-cert-store/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :UILaunchStoryboardName string LaunchScreen" ibaal-cert-store/Info.plist || /usr/libexec/PlistBuddy -c "Set :UILaunchStoryboardName LaunchScreen" ibaal-cert-store/Info.plist
           
-          # 4. Paksa project.yml menjadi khusus iPhone (mencegah mode rasio iPad)
-          sed -i '' 's/TARGETED_DEVICE_FAMILY.*/TARGETED_DEVICE_FAMILY: "1"/g' project.yml
+          # 3. Paksa project.yml dengan Bundle ID baru agar Cache iPhone Reset!
+          cat << 'EOF' > project.yml
+          name: ibaal-cert-store
+          options:
+            bundleIdPrefix: com.ibaal
+            deploymentTarget:
+              iOS: "15.0"
+            xcodeVersion: "15.0"
+          targets:
+            ibaal-cert-store:
+              type: application
+              platform: iOS
+              deploymentTarget: "15.0"
+              sources:
+                - path: ibaal-cert-store
+              info:
+                path: ibaal-cert-store/Info.plist
+              settings:
+                base:
+                  PRODUCT_NAME: "ibaal cert store"
+                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.sales.v3"
+                  TARGETED_DEVICE_FAMILY: "1"
+                  CODE_SIGNING_REQUIRED: "NO"
+                  CODE_SIGN_IDENTITY: ""
+                  CODE_SIGNING_ALLOWED: "NO"
+          EOF
 
       - name: Generate Xcode Project
         run: xcodegen generate
