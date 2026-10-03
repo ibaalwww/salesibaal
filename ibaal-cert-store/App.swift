@@ -565,7 +565,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
-                            // Edit Modal Kloter AKTIF (Diakses lewat menu ... di atas kiri)
+                            // Edit Modal Kloter Aktif
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showEditBatchModal = true
@@ -655,7 +655,6 @@ struct ContentView: View {
             )
         }
         .sheet(isPresented: $showEditBatchModal) {
-            // Memanggil khusus untuk Kloter Aktif
             EditBatchModalSheet(
                 batchNumber: activeBatchNumber,
                 currentModal: BatchModalManager.shared.getModal(for: activeBatchNumber),
@@ -1618,7 +1617,7 @@ struct BatchHistorySheet: View {
                                 HStack {
                                     Text("Kloter #\(b)").font(.mali(13))
                                     
-                                    // Tombol Edit Khusus untuk Kloter Arsip yang sudah selesai
+                                    // Tombol Edit Modal
                                     Button {
                                         batchToEdit = EditableBatch(id: b)
                                     } label: {
@@ -1637,18 +1636,37 @@ struct BatchHistorySheet: View {
                                     Spacer()
                                     Text("5/5 Selesai ✅").font(.mali(9)).foregroundColor(.green)
                                 }
+                                
                                 Divider().background(Color.white.opacity(0.1))
                                 
-                                HStack {
-                                    Text("Untung: \(hideFinancials ? "••••" : AppFormatters.idr((omset - modal) - fee))")
-                                        .font(.mali(11))
-                                        .foregroundColor(.green)
+                                // Rincian Finansial Berwarna (Kiri: Pengeluaran & Untung, Kanan: Omset)
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Modal: \(hideFinancials ? "••••" : AppFormatters.idr(modal))")
+                                            .font(.mali(10))
+                                            .foregroundColor(.orange)
+                                        
+                                        Text("Fee Admin: \(hideFinancials ? "••••" : AppFormatters.idr(fee))")
+                                            .font(.mali(10))
+                                            .foregroundColor(.yellow)
+                                            
+                                        Text("Keuntungan: \(hideFinancials ? "••••" : AppFormatters.idr((omset - modal) - fee))")
+                                            .font(.mali(13)) // Font lebih besar sedikit
+                                            .foregroundColor(.green)
+                                            .padding(.top, 2)
+                                    }
+                                    
                                     Spacer()
-                                    Text("Omset: \(hideFinancials ? "••••" : AppFormatters.idr(omset))")
-                                        .font(.mali(10))
-                                        .foregroundColor(.cyan)
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text("Omset: \(hideFinancials ? "••••" : AppFormatters.idr(omset))")
+                                            .font(.mali(11))
+                                            .foregroundColor(.cyan)
+                                    }
                                 }
+                                .padding(.vertical, 3)
                                 
+                                // Daftar Pembeli
                                 VStack(spacing: 4) {
                                     ForEach(bItems, id: \.id) { item in
                                         HStack {
@@ -1666,7 +1684,7 @@ struct BatchHistorySheet: View {
                                 .padding(8)
                                 .background(Color.black.opacity(0.2))
                                 .cornerRadius(8)
-                                .padding(.top, 4)
+                                .padding(.top, 2)
                             }
                             .padding(10)
                             .liquidGlass(cornerRadius: 12)
@@ -1674,7 +1692,7 @@ struct BatchHistorySheet: View {
                         }
                     }
                     .padding(.vertical, 8)
-                    .id(forceRefresh) // Memastikan layar arsip menyegarkan kalkulasi saat ada perubahan
+                    .id(forceRefresh)
                 }
             }
             .navigationTitle("Arsip Kloter")
@@ -1685,7 +1703,6 @@ struct BatchHistorySheet: View {
                 }
             }
             .sheet(item: $batchToEdit) { eb in
-                // Memanggil Form Modal & Admin khusus untuk ID Kloter Arsip
                 EditBatchModalSheet(
                     batchNumber: eb.id,
                     currentModal: BatchModalManager.shared.getModal(for: eb.id),
@@ -1693,7 +1710,7 @@ struct BatchHistorySheet: View {
                 ) { updatedModal, updatedFee in
                     BatchModalManager.shared.setModal(for: eb.id, modal: updatedModal)
                     BatchAdminFeeManager.shared.setFee(for: eb.id, fee: updatedFee)
-                    forceRefresh = UUID() // Refresh layar arsip otomatis setelah simpan
+                    forceRefresh = UUID()
                 }
             }
         }
