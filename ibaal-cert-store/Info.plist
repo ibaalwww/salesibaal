@@ -34,9 +34,12 @@
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
 
-    <!-- Wajib: Aktifkan Full Native Resolution iOS -->
+    <!-- KUNCI WAJIB: Mencegah Letterboxing & Memaksa Full Native Screen -->
     <key>UILaunchScreen</key>
-    <dict/>
+    <dict>
+        <key>UIImageName</key>
+        <string></string>
+    </dict>
 
     <key>UIRequiredDeviceCapabilities</key>
     <array>
