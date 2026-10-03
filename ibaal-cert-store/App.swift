@@ -167,7 +167,7 @@ class CertStorageManager {
     }
 }
 
-// MARK: - Model Data Penjualan
+// MARK: - Model Data Penjualan (Telah Diupdate dengan Fitur DP)
 struct SaleItem: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var tanggalDaftar: Date
@@ -180,6 +180,21 @@ struct SaleItem: Identifiable, Codable, Hashable {
     var batchNumber: Int
     var zipFileName: String? = nil
     var certPassword: String? = nil
+    
+    // Properti Opsional Untuk Backup Lama (Kalau nil berarti lunas)
+    var telahDibayar: Int? = nil
+
+    var nominalDibayar: Int {
+        return telahDibayar ?? hargaJual
+    }
+    
+    var sisaPembayaran: Int {
+        return hargaJual - nominalDibayar
+    }
+    
+    var isLunas: Bool {
+        return sisaPembayaran <= 0
+    }
 
     var expiredGaransiDate: Date {
         Calendar.current.date(byAdding: .day, value: durasiHari, to: tanggalDaftar) ?? tanggalDaftar
@@ -434,8 +449,13 @@ struct ContentView: View {
 
     var modalKloterAktif: Int { BatchModalManager.shared.getModal(for: activeBatchNumber) }
     var feeAdminKloterAktif: Int { BatchAdminFeeManager.shared.getFee(for: activeBatchNumber) }
+    
+    // Perhitungan Real Uang Masuk vs Potensi Omset
     var omsetKloterAktif: Int { activeBatchItems.reduce(0) { $0 + $1.hargaJual } }
-    var labaBersihOwnerAktif: Int { (omsetKloterAktif - modalKloterAktif) - feeAdminKloterAktif }
+    var uangMasukKloterAktif: Int { activeBatchItems.reduce(0) { $0 + $1.nominalDibayar } }
+    var piutangKloterAktif: Int { activeBatchItems.reduce(0) { $0 + $1.sisaPembayaran } }
+    var labaBersihOwnerAktif: Int { (uangMasukKloterAktif - modalKloterAktif) - feeAdminKloterAktif }
+    
     var completedBatchesCount: Int { items.count / 5 }
     var totalOmsetSemua: Int { items.reduce(0) { $0 + $1.hargaJual } }
 
@@ -574,7 +594,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
                             
-                            // 2. Tombol Sensor Saldo (Pindah ke bawah arsip)
+                            // 2. Tampilkan/Sembunyikan Saldo
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     hideFinancials.toggle()
@@ -591,7 +611,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
-                            // 3. Ubah Modal & Fee Admin
+                            // 3. Edit Modal Kloter Aktif
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showEditBatchModal = true
@@ -608,7 +628,7 @@ struct ContentView: View {
 
                             Divider().background(Color.white.opacity(0.15))
 
-                            // 4. Cadangkan Data (Backup)
+                            // 4. Cadangkan Data
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 exportBackup()
@@ -623,7 +643,7 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
-                            // 5. Pulihkan Data (Restore)
+                            // 5. Pulihkan Data
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showFileImporter = true
@@ -748,7 +768,7 @@ struct ContentView: View {
                 }
             }
             
-            // Judul tepat di tengah
+            // Text Absolute di tengah
             Text("i B a a L CERT STORE")
                 .font(.mali(19))
                 .foregroundColor(.white)
@@ -875,11 +895,11 @@ struct ContentView: View {
                         .font(.mali(11))
                         .foregroundColor(.gray)
                 } else if feeAdminKloterAktif > 0 {
-                    Text("Untung Bersih (Potong Admin \(AppFormatters.idr(feeAdminKloterAktif)))")
+                    Text("Untung Bersih (Dari Uang Masuk & Potong Admin)")
                         .font(.mali(11))
                         .foregroundColor(.cyan.opacity(0.9))
                 } else {
-                    Text("Keuntungan Bersih Kloter Ini")
+                    Text("Keuntungan Bersih (Total Uang Masuk Kas)")
                         .font(.mali(11))
                         .foregroundColor(.green.opacity(0.85))
                 }
@@ -923,10 +943,16 @@ struct ContentView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Omset Kloter Ini").font(.mali(11)).foregroundColor(.gray)
+                    Text("Total Omset Aktif").font(.mali(11)).foregroundColor(.gray)
                     Text(hideFinancials ? "Rp ••••••" : AppFormatters.idr(omsetKloterAktif))
                         .font(.mali(13))
                         .foregroundColor(hideFinancials ? .gray : .white)
+                    
+                    if piutangKloterAktif > 0 {
+                        Text("Piutang DP: \(hideFinancials ? "••••" : AppFormatters.idr(piutangKloterAktif))")
+                            .font(.mali(10))
+                            .foregroundColor(.red)
+                    }
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -975,9 +1001,21 @@ struct ContentView: View {
 
                 HStack(spacing: 8) {
                     if !hideFinancials {
-                        Text(AppFormatters.idr(item.hargaJual))
-                            .font(.mali(13))
-                            .foregroundColor(.cyan)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(AppFormatters.idr(item.hargaJual))
+                                .font(.mali(13))
+                                .foregroundColor(.cyan)
+                            
+                            if !item.isLunas {
+                                Text("Kurang \(AppFormatters.idr(item.sisaPembayaran))")
+                                    .font(.mali(10))
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red.opacity(0.2))
+                                    .foregroundColor(.red)
+                                    .cornerRadius(4)
+                            }
+                        }
                     }
 
                     Button {
@@ -1195,8 +1233,11 @@ struct ContentView: View {
             
             if let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) {
                 items = payload.items
-                UserDefaults.standard.set(payload.batchModals, forKey: "saved_batch_modals")
-                UserDefaults.standard.set(payload.batchAdminFees, forKey: "saved_batch_admin_fees")
+                let defaults = UserDefaults.standard
+                defaults.set(payload.batchModals, forKey: "saved_batch_modals")
+                defaults.set(payload.batchAdminFees, forKey: "saved_batch_admin_fees")
+                defaults.synchronize()
+                
                 recalculateAndSave()
                 alertMessage = "Sukses! Berhasil memulihkan \(payload.items.count) transaksi beserta data modal & fee admin."
             } else if let importedItems = try? JSONDecoder().decode([SaleItem].self, from: data) {
@@ -1246,7 +1287,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Formulir Tambah / Edit Penjualan
+// MARK: - Formulir Tambah / Edit Penjualan (Termasuk Fitur Lunas/DP)
 struct SaleFormSheet: View {
     @Environment(\.dismiss) var dismiss
 
@@ -1260,7 +1301,11 @@ struct SaleFormSheet: View {
     @State private var kontakBuyer = ""
     @State private var tanggalDaftar = Date()
     @State private var udid = ""
+    
     @State private var hargaJualText = "60000"
+    @State private var isLunas = true
+    @State private var telahDibayarText = ""
+    
     @State private var selectedGaransi = 30
     @State private var catatan = ""
     @State private var batchNumber = 1
@@ -1309,11 +1354,12 @@ struct SaleFormSheet: View {
                         .liquidGlass(cornerRadius: 16)
                         .padding(.horizontal)
 
+                        // Menu Harga & DP
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("HARGA JUAL").font(.mali(12)).foregroundColor(.cyan)
+                            Text("HARGA JUAL & PEMBAYARAN").font(.mali(12)).foregroundColor(.cyan)
 
                             HStack {
-                                Text("Nominal (Rp)").font(.mali(14))
+                                Text("Harga Total (Rp)").font(.mali(14))
                                 Spacer()
                                 TextField("60000", text: $hargaJualText)
                                     .keyboardType(.numberPad)
@@ -1324,6 +1370,29 @@ struct SaleFormSheet: View {
                             .padding(10)
                             .background(Color.white.opacity(0.06))
                             .cornerRadius(10)
+                            
+                            Toggle("Lunas (Bayar Penuh)", isOn: $isLunas)
+                                .font(.mali(14))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(10)
+                                .tint(.green)
+                            
+                            if !isLunas {
+                                HStack {
+                                    Text("Baru Dibayar (DP)").font(.mali(14)).foregroundColor(.orange)
+                                    Spacer()
+                                    TextField("0", text: $telahDibayarText)
+                                        .keyboardType(.numberPad)
+                                        .multilineTextAlignment(.trailing)
+                                        .font(.mali(16))
+                                        .foregroundColor(.orange)
+                                }
+                                .padding(10)
+                                .background(Color.orange.opacity(0.15))
+                                .cornerRadius(10)
+                            }
                         }
                         .padding(12)
                         .liquidGlass(cornerRadius: 16)
@@ -1472,7 +1541,11 @@ struct SaleFormSheet: View {
                     kontakBuyer = item.kontakBuyer
                     tanggalDaftar = item.tanggalDaftar
                     udid = item.udid
+                    
                     hargaJualText = String(item.hargaJual)
+                    isLunas = item.isLunas
+                    telahDibayarText = String(item.nominalDibayar)
+                    
                     selectedGaransi = item.durasiHari
                     catatan = item.catatan
                     batchNumber = item.batchNumber
@@ -1485,18 +1558,22 @@ struct SaleFormSheet: View {
 
     private func validateAndSave() {
         let cleanUDID = udid.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalHarga = Int(hargaJualText) ?? 60000
+        let finalDibayar = isLunas ? finalHarga : (Int(telahDibayarText) ?? 0)
+        
         let finalItem = SaleItem(
             id: itemId,
             tanggalDaftar: tanggalDaftar,
             namaBuyer: namaBuyer.trimmingCharacters(in: .whitespacesAndNewlines),
             kontakBuyer: kontakBuyer.trimmingCharacters(in: .whitespacesAndNewlines),
             udid: cleanUDID.isEmpty ? "-" : cleanUDID,
-            hargaJual: Int(hargaJualText) ?? 60000,
+            hargaJual: finalHarga,
             durasiHari: selectedGaransi,
             catatan: catatan,
             batchNumber: batchNumber,
             zipFileName: zipFileName,
-            certPassword: certPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+            certPassword: certPassword.trimmingCharacters(in: .whitespacesAndNewlines),
+            telahDibayar: finalDibayar
         )
 
         if !cleanUDID.isEmpty && cleanUDID != "-" {
@@ -1610,10 +1687,10 @@ struct BatchHistorySheet: View {
         var total = 0
         for b in completedBatches {
             let bItems = allItems.filter { $0.batchNumber == b }
-            let omset = bItems.reduce(0) { $0 + $1.hargaJual }
+            let uangMasuk = bItems.reduce(0) { $0 + $1.nominalDibayar }
             let modal = BatchModalManager.shared.getModal(for: b)
             let fee = BatchAdminFeeManager.shared.getFee(for: b)
-            total += ((omset - modal) - fee)
+            total += ((uangMasuk - modal) - fee)
         }
         return total
     }
@@ -1640,6 +1717,8 @@ struct BatchHistorySheet: View {
                         ForEach(completedBatches, id: \.self) { b in
                             let bItems = allItems.filter { $0.batchNumber == b }
                             let omset = bItems.reduce(0) { $0 + $1.hargaJual }
+                            let uangMasuk = bItems.reduce(0) { $0 + $1.nominalDibayar }
+                            let piutang = bItems.reduce(0) { $0 + $1.sisaPembayaran }
                             let modal = BatchModalManager.shared.getModal(for: b)
                             let fee = BatchAdminFeeManager.shared.getFee(for: b)
 
@@ -1680,7 +1759,7 @@ struct BatchHistorySheet: View {
                                             .font(.mali(12))
                                             .foregroundColor(.yellow)
                                             
-                                        Text("Keuntungan: \(hideFinancials ? "••••" : AppFormatters.idr((omset - modal) - fee))")
+                                        Text("Keuntungan: \(hideFinancials ? "••••" : AppFormatters.idr((uangMasuk - modal) - fee))")
                                             .font(.mali(15))
                                             .foregroundColor(.green)
                                             .padding(.top, 3)
@@ -1692,6 +1771,12 @@ struct BatchHistorySheet: View {
                                         Text("Omset: \(hideFinancials ? "••••" : AppFormatters.idr(omset))")
                                             .font(.mali(13))
                                             .foregroundColor(.cyan)
+                                        
+                                        if piutang > 0 {
+                                            Text("Piutang DP: \(hideFinancials ? "••••" : AppFormatters.idr(piutang))")
+                                                .font(.mali(11))
+                                                .foregroundColor(.red)
+                                        }
                                     }
                                 }
                                 .padding(.vertical, 4)
@@ -1699,16 +1784,25 @@ struct BatchHistorySheet: View {
                                 // Daftar Pembeli
                                 VStack(spacing: 5) {
                                     ForEach(bItems, id: \.id) { item in
-                                        HStack {
+                                        HStack(alignment: .center) {
                                             Text(item.displayName)
                                                 .font(.mali(12))
                                                 .foregroundColor(.white.opacity(0.85))
                                                 .lineLimit(1)
                                             Spacer()
-                                            Text(hideFinancials ? "••••" : AppFormatters.idr(item.hargaJual))
-                                                .font(.mali(12))
-                                                .foregroundColor(.cyan.opacity(0.8))
+                                            
+                                            VStack(alignment: .trailing) {
+                                                Text(hideFinancials ? "••••" : AppFormatters.idr(item.hargaJual))
+                                                    .font(.mali(12))
+                                                    .foregroundColor(.cyan.opacity(0.8))
+                                                if !item.isLunas {
+                                                    Text("Kurang \(hideFinancials ? "••••" : AppFormatters.idr(item.sisaPembayaran))")
+                                                        .font(.mali(10))
+                                                        .foregroundColor(.red)
+                                                }
+                                            }
                                         }
+                                        .padding(.bottom, 2)
                                     }
                                 }
                                 .padding(10)
