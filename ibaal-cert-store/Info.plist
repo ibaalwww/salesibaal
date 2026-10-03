@@ -34,9 +34,9 @@
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
 
-    <!-- Kunci Wajib Resolusi Native Layar Penuh -->
-    <key>UILaunchStoryboardName</key>
-    <string>LaunchScreen</string>
+    <!-- Wajib: Aktifkan Full Native Resolution iOS -->
+    <key>UILaunchScreen</key>
+    <dict/>
 
     <key>UIRequiredDeviceCapabilities</key>
     <array>
