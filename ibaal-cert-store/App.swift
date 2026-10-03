@@ -168,7 +168,7 @@ class CertStorageManager {
 }
 
 // MARK: - Model Data Penjualan
-struct SaleItem: Identifiable, Codable {
+struct SaleItem: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var tanggalDaftar: Date
     var namaBuyer: String
@@ -196,6 +196,7 @@ struct SaleItem: Identifiable, Codable {
 
     var hasCertZip: Bool { zipFileName != nil }
 
+    // Properti ini dikalkulasi sekali dan aman untuk dirender berulang kali
     var displayName: String {
         let trimNama = namaBuyer.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimNama.isEmpty && trimNama != "-" { return trimNama }
@@ -411,6 +412,9 @@ struct ContentView: View {
     @State private var alertMessage = ""
     @State private var showAlert = false
 
+    // State untuk memicu pembaruan UI saat modal/fee diubah
+    @State private var forceRefresh = UUID()
+
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var activeBatchNumber: Int {
@@ -494,6 +498,7 @@ struct ContentView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         summaryDashboardView
+                            .id(forceRefresh) // Force UI update jika UUID berubah
 
                         LiquidPrismSwitch(selected: $selectedFilter)
 
@@ -660,16 +665,21 @@ struct ContentView: View {
             )
         }
         .sheet(isPresented: $showEditBatchModal) {
+            // Memastikan data yang di-pass ke sheet adalah data terbaru
             EditBatchModalSheet(
                 batchNumber: activeBatchNumber,
-                currentModal: modalKloterAktif,
-                currentAdminFee: feeAdminKloterAktif
+                currentModal: BatchModalManager.shared.getModal(for: activeBatchNumber),
+                currentAdminFee: BatchAdminFeeManager.shared.getFee(for: activeBatchNumber)
             ) { updatedModal, updatedFee in
                 BatchModalManager.shared.setModal(for: activeBatchNumber, modal: updatedModal)
                 BatchAdminFeeManager.shared.setFee(for: activeBatchNumber, fee: updatedFee)
+                
+                // Pancing SwiftUI agar merender ulang dashboard setelah fee diubah
+                forceRefresh = UUID()
             }
         }
         .sheet(isPresented: $showHistoryModal) {
+            // Memastikan array yang di-pass adalah array terbaru dan ter-refresh
             BatchHistorySheet(allItems: items, hideFinancials: hideFinancials)
         }
         .sheet(isPresented: $showShareSheet) {
@@ -1184,6 +1194,10 @@ struct ContentView: View {
             items = importedItems
             recalculateAndSave()
             alertMessage = "Sukses! Berhasil memulihkan \(importedItems.count) transaksi."
+            
+            // Force refresh UI agar setelan modal & admin termuat ulang
+            forceRefresh = UUID()
+            
             showAlert = true
         } catch {
             alertMessage = "Gagal memulihkan berkas JSON."
@@ -1207,6 +1221,7 @@ struct ContentView: View {
             UserDefaults.standard.set(encoded, forKey: "saved_sales")
         }
         AutoSaveManager.shared.save(items)
+        forceRefresh = UUID() // Paksa antarmuka merender ulang setiap ada data baru
     }
 
     private func loadData() {
@@ -1617,6 +1632,7 @@ struct BatchHistorySheet: View {
                                     Text("5/5 Selesai ✅").font(.mali(9)).foregroundColor(.green)
                                 }
                                 Divider().background(Color.white.opacity(0.1))
+                                
                                 HStack {
                                     Text("Untung: \(hideFinancials ? "••••" : AppFormatters.idr((omset - modal) - fee))")
                                         .font(.mali(11))
@@ -1626,6 +1642,26 @@ struct BatchHistorySheet: View {
                                         .font(.mali(10))
                                         .foregroundColor(.cyan)
                                 }
+                                
+                                // Memperbaiki bug nama yang hilang: Membaca langsung dari array item
+                                VStack(spacing: 4) {
+                                    ForEach(bItems, id: \.id) { item in
+                                        HStack {
+                                            Text(item.displayName)
+                                                .font(.mali(10))
+                                                .foregroundColor(.white.opacity(0.85))
+                                                .lineLimit(1)
+                                            Spacer()
+                                            Text(hideFinancials ? "••••" : AppFormatters.idr(item.hargaJual))
+                                                .font(.mali(10))
+                                                .foregroundColor(.cyan.opacity(0.8))
+                                        }
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color.black.opacity(0.2))
+                                .cornerRadius(8)
+                                .padding(.top, 4)
                             }
                             .padding(10)
                             .liquidGlass(cornerRadius: 12)
