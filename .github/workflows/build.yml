@@ -20,44 +20,43 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: 🔥 Fix Full Screen (Script Nuklir) 🔥
+      - name: 🛠️ Setup Project Files (Anti Error 65 & Fix Full Screen)
         run: |
-          # 1. Bikin Warna Background Hitam Resmi untuk LaunchScreen
-          mkdir -p ibaal-cert-store/Assets.xcassets/LaunchColor.colorset
-          cat << 'EOF' > ibaal-cert-store/Assets.xcassets/LaunchColor.colorset/Contents.json
-          {
-            "colors": [ { "color": { "color-space": "srgb", "components": { "alpha": "1.000", "blue": "0.04", "green": "0.04", "red": "0.04" } }, "idiom": "universal" } ],
-            "info": { "author": "xcode", "version": 1 }
-          }
-          EOF
-          
-          # 2. Paksa Info.plist menggunakan LaunchColor
+          # 1. Hapus sisa folder yang bikin error kompilasi sebelumnya
+          rm -rf ibaal-cert-store/Assets.xcassets
+
+          # 2. Bikin Info.plist Standar Resmi Apple yang LENGKAP
           cat << 'EOF' > ibaal-cert-store/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleDisplayName</key>
+              <string>ibaal cert store</string>
               <key>CFBundleExecutable</key>
               <string>$(EXECUTABLE_NAME)</string>
               <key>CFBundleIdentifier</key>
               <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
               <key>CFBundleName</key>
               <string>$(PRODUCT_NAME)</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
               <key>CFBundleVersion</key>
-              <string>3</string>
+              <string>4</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
               <key>UIAppFonts</key>
               <array>
                   <string>Mali-Bold.ttf</string>
               </array>
-              <key>UILaunchScreen</key>
-              <dict>
-                  <key>UIColorName</key>
-                  <string>LaunchColor</string>
-              </dict>
+              <key>UILaunchStoryboardName</key>
+              <string>LaunchScreen</string>
               <key>UIRequiredDeviceCapabilities</key>
               <array>
                   <string>arm64</string>
@@ -66,11 +65,44 @@ jobs:
               <array>
                   <string>UIInterfaceOrientationPortrait</string>
               </array>
+              <key>UIStatusBarStyle</key>
+              <string>UIStatusBarStyleLightContent</string>
+              <key>UIViewControllerBasedStatusBarAppearance</key>
+              <false/>
           </dict>
           </plist>
           EOF
           
-          # 3. Paksa project.yml dengan Bundle ID baru agar Cache iPhone Reset!
+          # 3. Bikin File LaunchScreen.storyboard Murni (Biar iOS Ngebaca Layar Penuh)
+          cat << 'EOF' > ibaal-cert-store/LaunchScreen.storyboard
+          <?xml version="1.0" encoding="UTF-8"?>
+          <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+              <device id="retina6_12" orientation="portrait" appearance="dark"/>
+              <dependencies>
+                  <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
+                  <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+                  <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+              </dependencies>
+              <scenes>
+                  <scene sceneID="EHf-IW-A2E">
+                      <objects>
+                          <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                              <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                                  <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                                  <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                  <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                                  <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                              </view>
+                          </viewController>
+                          <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                      </objects>
+                      <point key="canvasLocation" x="53" y="375"/>
+                  </scene>
+              </scenes>
+          </document>
+          EOF
+
+          # 4. Bikin project.yml LENGKAP DENGAN SWIFT_VERSION
           cat << 'EOF' > project.yml
           name: ibaal-cert-store
           options:
@@ -90,8 +122,9 @@ jobs:
               settings:
                 base:
                   PRODUCT_NAME: "ibaal cert store"
-                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.sales.v3"
+                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.sales.v4"
                   TARGETED_DEVICE_FAMILY: "1"
+                  SWIFT_VERSION: "5.0"
                   CODE_SIGNING_REQUIRED: "NO"
                   CODE_SIGN_IDENTITY: ""
                   CODE_SIGNING_ALLOWED: "NO"
