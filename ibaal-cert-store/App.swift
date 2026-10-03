@@ -167,7 +167,7 @@ class CertStorageManager {
     }
 }
 
-// MARK: - Model Data
+// MARK: - Model Data Penjualan
 struct SaleItem: Identifiable, Codable {
     var id: UUID = UUID()
     var tanggalDaftar: Date
@@ -465,30 +465,34 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Latar Belakang Penuh Edge-to-Edge
+            Color(red: 0.04, green: 0.04, blue: 0.07)
+                .ignoresSafeArea()
 
+            // Glow Cyan Atas (Area Notch)
             Circle()
-                .fill(Color.cyan.opacity(0.24))
-                .frame(width: 250, height: 250)
-                .blur(radius: 85)
-                .offset(x: -120, y: -200)
+                .fill(Color.cyan.opacity(0.30))
+                .frame(width: 320, height: 320)
+                .blur(radius: 100)
+                .offset(x: -120, y: -320)
 
+            // Glow Ungu Bawah (Area Home Bar)
             Circle()
-                .fill(Color.purple.opacity(0.20))
-                .frame(width: 230, height: 230)
-                .blur(radius: 85)
-                .offset(x: 130, y: 10)
+                .fill(Color.purple.opacity(0.25))
+                .frame(width: 300, height: 300)
+                .blur(radius: 100)
+                .offset(x: 130, y: 320)
 
             VStack(spacing: 8) {
-                // MARK: - Header Presisi 1 Baris
+                // Header 1 Baris Presisi
                 customTopBar
 
-                // MARK: - Search Bar Liquid Glass Ramping
+                // Search Bar Liquid Glass Ramping
                 customSearchBar
 
-                // MARK: - Konten Utama Scrollable
+                // Area Konten Scrollable
                 ScrollView {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 12) {
                         summaryDashboardView
 
                         LiquidPrismSwitch(selected: $selectedFilter)
@@ -507,15 +511,16 @@ struct ContentView: View {
 
                         if filteredItems.isEmpty {
                             VStack(spacing: 8) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 28))
-                                    .foregroundColor(.white.opacity(0.25))
-                                Text(items.isEmpty ? "Belum ada transaksi.\nTekan + di atas untuk menambah." : "Tidak ada transaksi yang cocok.")
+                                Image(systemName: "tray.fill")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(.white.opacity(0.2))
+                                Text(items.isEmpty ? "Belum ada transaksi di kloter ini.\nTekan + di pojok kanan atas." : "Tidak ada transaksi yang cocok.")
                                     .font(.mali(12))
                                     .foregroundColor(.gray)
                                     .multilineTextAlignment(.center)
                             }
-                            .padding(.top, 24)
+                            .padding(.top, 40)
+                            .padding(.bottom, 60)
                         } else {
                             ForEach(batchesInFiltered, id: \.self) { batch in
                                 VStack(spacing: 6) {
@@ -531,14 +536,15 @@ struct ContentView: View {
                                     }
                                 }
                             }
+                            .padding(.bottom, 40)
                         }
                     }
                     .padding(.vertical, 4)
                 }
             }
-            .padding(.top, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-            // MARK: - Dropdown Menu 3 Titik
+            // Dropdown Menu 3 Titik
             if showOptionsMenu {
                 Color.black.opacity(0.45)
                     .ignoresSafeArea()
@@ -613,7 +619,7 @@ struct ContentView: View {
                         .frame(width: 240)
                         .liquidGlass(cornerRadius: 16)
                         .padding(.leading, 14)
-                        .padding(.top, 46)
+                        .padding(.top, 50)
                         Spacer()
                     }
                     Spacer()
