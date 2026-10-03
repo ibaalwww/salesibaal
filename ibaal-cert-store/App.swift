@@ -14,7 +14,6 @@ final class FontManager {
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
 
-        // Deteksi otomatis nama internal font Mali di sistem iOS
         for family in UIFont.familyNames {
             for name in UIFont.fontNames(forFamilyName: family) {
                 if name.localizedCaseInsensitiveContains("mali") {
@@ -235,7 +234,7 @@ struct GaransiOption: Identifiable {
 
 // MARK: - Modifier Liquid Glass Modern
 extension View {
-    func liquidGlass(cornerRadius: CGFloat = 20) -> some View {
+    func liquidGlass(cornerRadius: CGFloat = 16) -> some View {
         self
             .background(
                 ZStack {
@@ -272,10 +271,10 @@ extension View {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 1.1
+                        lineWidth: 1.0
                     )
             )
-            .shadow(color: Color.black.opacity(0.5), radius: 16, x: 0, y: 8)
+            .shadow(color: Color.black.opacity(0.45), radius: 12, x: 0, y: 6)
     }
 }
 
@@ -287,12 +286,12 @@ struct iBaalSalesApp: App {
 
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
-        appearance.largeTitleTextAttributes = [
-            .font: UIFont.mali(28),
+        appearance.titleTextAttributes = [
+            .font: UIFont.mali(17),
             .foregroundColor: UIColor.white
         ]
-        appearance.titleTextAttributes = [
-            .font: UIFont.mali(18),
+        appearance.largeTitleTextAttributes = [
+            .font: UIFont.mali(20),
             .foregroundColor: UIColor.white
         ]
 
@@ -319,7 +318,7 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - Status Garansi View
+// MARK: - Status Garansi View Compact
 struct StatusGaransiView: View {
     let now: Date
     let exp: Date
@@ -336,57 +335,57 @@ struct StatusGaransiView: View {
     }
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 4) {
             Circle()
                 .fill(status.color)
-                .frame(width: 8, height: 8)
-                .shadow(color: status.color.opacity(0.8), radius: 4)
+                .frame(width: 7, height: 7)
+                .shadow(color: status.color.opacity(0.8), radius: 3)
             Text(status.text)
-                .font(.mali(12))
+                .font(.mali(11))
                 .foregroundColor(status.color)
         }
     }
 }
 
-// MARK: - Switch Gelembung Prisma
+// MARK: - Switch Gelembung Prisma Compact
 struct LiquidPrismSwitch: View {
     @Binding var selected: FilterGaransi
     @Namespace private var lensAnimation
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ForEach(FilterGaransi.allCases) { filter in
                 let isSelected = (selected == filter)
                 Button {
-                    withAnimation(.spring(response: 0.38, dampingFraction: 0.74)) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                         selected = filter
                     }
                 } label: {
-                    VStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         Image(systemName: filter.icon)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                         Text(filter.rawValue)
-                            .font(.mali(12))
+                            .font(.mali(11))
                     }
                     .foregroundColor(isSelected ? .white : .white.opacity(0.48))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
+                    .padding(.vertical, 7)
                     .background(
                         ZStack {
                             if isSelected {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .fill(.ultraThinMaterial)
 
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .fill(Color.white.opacity(0.09))
 
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
                                     .stroke(
                                         AngularGradient(
                                             gradient: Gradient(colors: [.cyan, .blue, .purple, .pink, .orange, .yellow, .green, .cyan]),
                                             center: .center
                                         ),
-                                        lineWidth: 1.6
+                                        lineWidth: 1.4
                                     )
                                     .matchedGeometryEffect(id: "PRISM_LENS", in: lensAnimation)
                             }
@@ -396,15 +395,15 @@ struct LiquidPrismSwitch: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(5)
+        .padding(4)
         .background(Color.black.opacity(0.55))
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 23, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .padding(.horizontal)
     }
 }
 
-// MARK: - Tampilan Utama
+// MARK: - Tampilan Utama (Compact Layout)
 struct ContentView: View {
     @Environment(\.openURL) private var openURL
 
@@ -485,19 +484,19 @@ struct ContentView: View {
                 Color.black.ignoresSafeArea()
 
                 Circle()
-                    .fill(Color.cyan.opacity(0.28))
-                    .frame(width: 320, height: 320)
-                    .blur(radius: 95)
-                    .offset(x: -120, y: -260)
+                    .fill(Color.cyan.opacity(0.24))
+                    .frame(width: 260, height: 260)
+                    .blur(radius: 90)
+                    .offset(x: -120, y: -220)
 
                 Circle()
-                    .fill(Color.purple.opacity(0.22))
-                    .frame(width: 290, height: 290)
-                    .blur(radius: 100)
-                    .offset(x: 140, y: -30)
+                    .fill(Color.purple.opacity(0.20))
+                    .frame(width: 240, height: 240)
+                    .blur(radius: 90)
+                    .offset(x: 140, y: -20)
 
                 ScrollView {
-                    VStack(spacing: 18) {
+                    VStack(spacing: 12) {
                         summaryDashboardView
 
                         if completedBatchesCount > 0 {
@@ -507,15 +506,16 @@ struct ContentView: View {
                                 HStack(spacing: 8) {
                                     Image(systemName: "archivebox.fill").foregroundColor(.green)
                                     Text("\(completedBatchesCount) Kloter Selesai Tersimpan")
-                                        .font(.mali(14))
+                                        .font(.mali(13))
                                         .foregroundColor(.white)
                                     Spacer()
                                     Text("Buka Arsip ➔")
-                                        .font(.mali(12))
+                                        .font(.mali(11))
                                         .foregroundColor(.green)
                                 }
-                                .padding(14)
-                                .liquidGlass(cornerRadius: 16)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .liquidGlass(cornerRadius: 14)
                             }
                             .buttonStyle(.plain)
                             .padding(.horizontal)
@@ -525,33 +525,34 @@ struct ContentView: View {
 
                         HStack {
                             Text("DAFTAR PEMBELI")
-                                .font(.mali(12))
+                                .font(.mali(11))
                                 .foregroundColor(.white.opacity(0.55))
                             Spacer()
                             Text("\(filteredItems.count) Terfilter / \(items.count) Total")
-                                .font(.mali(12))
+                                .font(.mali(11))
                                 .foregroundColor(.cyan)
                         }
                         .padding(.horizontal)
+                        .padding(.top, 2)
 
                         if filteredItems.isEmpty {
-                            VStack(spacing: 12) {
+                            VStack(spacing: 8) {
                                 Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 38))
+                                    .font(.system(size: 32))
                                     .foregroundColor(.white.opacity(0.3))
                                 Text(items.isEmpty ? "Belum ada transaksi.\nTekan + di pojok kanan atas." : "Tidak ada transaksi yang cocok.")
-                                    .font(.mali(14))
+                                    .font(.mali(13))
                                     .foregroundColor(.gray)
                                     .multilineTextAlignment(.center)
                             }
-                            .padding(.top, 40)
+                            .padding(.top, 30)
                         } else {
                             ForEach(batchesInFiltered, id: \.self) { batch in
-                                VStack(spacing: 10) {
+                                VStack(spacing: 8) {
                                     kloterAccordionHeader(batch: batch, count: filteredItems.filter { $0.batchNumber == batch }.count)
 
                                     if isBatchExpanded(batch) {
-                                        VStack(spacing: 12) {
+                                        VStack(spacing: 10) {
                                             ForEach(filteredItems.filter { $0.batchNumber == batch }) { item in
                                                 buyerCard(item: item)
                                             }
@@ -562,7 +563,7 @@ struct ContentView: View {
                             }
                         }
                     }
-                    .padding(.vertical)
+                    .padding(.vertical, 8)
                 }
 
                 if showOptionsMenu {
@@ -576,7 +577,7 @@ struct ContentView: View {
 
                     VStack {
                         HStack {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Button {
                                     withAnimation { showOptionsMenu = false }
                                     showHistoryModal = true
@@ -584,11 +585,11 @@ struct ContentView: View {
                                     HStack(spacing: 10) {
                                         Image(systemName: "archivebox.fill").foregroundColor(.green)
                                         Text("Arsip Kloter Selesai")
-                                            .font(.mali(13))
+                                            .font(.mali(12))
                                             .foregroundColor(.white)
                                     }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
                                 }
 
                                 Button {
@@ -598,11 +599,11 @@ struct ContentView: View {
                                     HStack(spacing: 10) {
                                         Image(systemName: "dollarsign.circle.fill").foregroundColor(.cyan)
                                         Text("Ubah Modal & Fee Admin")
-                                            .font(.mali(13))
+                                            .font(.mali(12))
                                             .foregroundColor(.white)
                                     }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
                                 }
 
                                 Divider().background(Color.white.opacity(0.15))
@@ -614,11 +615,11 @@ struct ContentView: View {
                                     HStack(spacing: 10) {
                                         Image(systemName: "square.and.arrow.up").foregroundColor(.yellow)
                                         Text("Cadangkan Data (Backup)")
-                                            .font(.mali(13))
+                                            .font(.mali(12))
                                             .foregroundColor(.white)
                                     }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
                                 }
 
                                 Button {
@@ -628,18 +629,18 @@ struct ContentView: View {
                                     HStack(spacing: 10) {
                                         Image(systemName: "square.and.arrow.down").foregroundColor(.orange)
                                         Text("Pulihkan Data (Restore)")
-                                            .font(.mali(13))
+                                            .font(.mali(12))
                                             .foregroundColor(.white)
                                     }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 10)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
                                 }
                             }
                             .padding(6)
-                            .frame(width: 255)
-                            .liquidGlass(cornerRadius: 18)
-                            .padding(.leading, 16)
-                            .padding(.top, 10)
+                            .frame(width: 240)
+                            .liquidGlass(cornerRadius: 16)
+                            .padding(.leading, 14)
+                            .padding(.top, 4)
                             Spacer()
                         }
                         Spacer()
@@ -649,6 +650,7 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("ibaal cert store")
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Cari nama, UDID, tipe HP...")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -658,7 +660,7 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle.fill")
-                            .font(.system(size: 21))
+                            .font(.system(size: 19))
                             .foregroundColor(.white.opacity(0.85))
                     }
                 }
@@ -670,7 +672,7 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: hideFinancials ? "eye.slash.fill" : "eye.fill")
-                            .font(.system(size: 19))
+                            .font(.system(size: 18))
                             .foregroundColor(.cyan)
                     }
 
@@ -678,7 +680,7 @@ struct ContentView: View {
                         showAddModal = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 22))
+                            .font(.system(size: 20))
                             .foregroundColor(.cyan)
                     }
                 }
@@ -762,82 +764,82 @@ struct ContentView: View {
                 }
             }
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(isCurrent ? .cyan : .white.opacity(0.6))
 
                 Text("KLOTER #\(batch)")
-                    .font(.mali(14))
+                    .font(.mali(13))
                     .foregroundColor(.white)
 
                 Text(isCurrent ? "AKTIF" : "SELESAI")
-                    .font(.mali(10))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
+                    .font(.mali(9))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
                     .background(isCurrent ? Color.cyan.opacity(0.22) : Color.green.opacity(0.22))
                     .foregroundColor(isCurrent ? .cyan : .green)
-                    .cornerRadius(6)
+                    .cornerRadius(5)
 
                 Spacer()
 
                 Text("\(count)/5 Cert")
-                    .font(.mali(12))
+                    .font(.mali(11))
                     .foregroundColor(count >= 5 ? .green : .gray)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .liquidGlass(cornerRadius: 16)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .liquidGlass(cornerRadius: 14)
         }
         .buttonStyle(.plain)
         .padding(.horizontal)
     }
 
     private var summaryDashboardView: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 8) {
             HStack {
-                HStack(spacing: 5) {
+                HStack(spacing: 4) {
                     Image(systemName: "sparkles").foregroundColor(.cyan)
                     Text("KLOTER AKTIF #\(activeBatchNumber)")
-                        .font(.mali(12))
+                        .font(.mali(11))
                         .foregroundColor(.cyan)
                 }
                 Spacer()
                 Text("Live Monitor")
-                    .font(.mali(11))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
+                    .font(.mali(10))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
                     .background(Color.green.opacity(0.2))
-                    .cornerRadius(6)
+                    .cornerRadius(5)
                     .foregroundColor(.green)
             }
 
-            VStack(spacing: 3) {
+            VStack(spacing: 1) {
                 Text(hideFinancials ? "Rp ••••••••" : (labaBersihOwnerAktif >= 0 ? "+\(AppFormatters.idr(labaBersihOwnerAktif))" : AppFormatters.idr(labaBersihOwnerAktif)))
-                    .font(.mali(30))
+                    .font(.mali(22))
                     .foregroundColor(hideFinancials ? .gray : (labaBersihOwnerAktif >= 0 ? .green : .red))
 
                 if hideFinancials {
                     Text("Mode Sensor Finansial Aktif 🔒")
-                        .font(.mali(12))
+                        .font(.mali(10))
                         .foregroundColor(.gray)
                 } else if feeAdminKloterAktif > 0 {
                     Text("Untung Bersih (Potong Admin \(AppFormatters.idr(feeAdminKloterAktif)))")
-                        .font(.mali(12))
+                        .font(.mali(10))
                         .foregroundColor(.cyan.opacity(0.9))
                 } else {
                     Text("Keuntungan Bersih Kloter Ini")
-                        .font(.mali(12))
+                        .font(.mali(10))
                         .foregroundColor(.green.opacity(0.85))
                 }
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: 5) {
                 HStack {
                     HStack(spacing: 4) {
                         Image(systemName: "cube.box.fill")
                         Text("\(slotTerjualDiBatchAktif)/5 Slot Terjual")
-                            .font(.mali(13))
+                            .font(.mali(11))
                     }
                     .foregroundColor(slotTerjualDiBatchAktif >= 5 ? .green : .white)
                     Spacer()
@@ -845,47 +847,47 @@ struct ContentView: View {
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 6)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(Color.white.opacity(0.1))
-                            .frame(height: 8)
-                        RoundedRectangle(cornerRadius: 6)
+                            .frame(height: 6)
+                        RoundedRectangle(cornerRadius: 4)
                             .fill(slotTerjualDiBatchAktif >= 5 ? Color.green : Color.cyan)
-                            .frame(width: min(geo.size.width * CGFloat(slotTerjualDiBatchAktif) / 5.0, geo.size.width), height: 8)
+                            .frame(width: min(geo.size.width * CGFloat(slotTerjualDiBatchAktif) / 5.0, geo.size.width), height: 6)
                     }
                 }
-                .frame(height: 8)
+                .frame(height: 6)
 
                 HStack {
                     Text(slotTerjualDiBatchAktif >= 5 ? "5/5 Penuh! Kloter berikutnya terbuka otomatis." : "Tersisa \(sisaSlotDiBatchAktif) slot di kloter ini.")
-                        .font(.mali(11))
+                        .font(.mali(10))
                         .foregroundColor(.gray)
                     Spacer()
                 }
             }
-            .padding(12)
+            .padding(10)
             .background(Color.black.opacity(0.3))
-            .cornerRadius(14)
+            .cornerRadius(12)
 
-            Divider().background(Color.white.opacity(0.15))
+            Divider().background(Color.white.opacity(0.12))
 
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Omset Kloter Ini").font(.mali(11)).foregroundColor(.gray)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Omset Kloter Ini").font(.mali(10)).foregroundColor(.gray)
                     Text(hideFinancials ? "Rp ••••••" : AppFormatters.idr(omsetKloterAktif))
-                        .font(.mali(14))
+                        .font(.mali(12))
                         .foregroundColor(hideFinancials ? .gray : .white)
                 }
                 Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Total Semua Omset").font(.mali(11)).foregroundColor(.gray)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Total Semua Omset").font(.mali(10)).foregroundColor(.gray)
                     Text(hideFinancials ? "Rp ••••••" : AppFormatters.idr(totalOmsetSemua))
-                        .font(.mali(14))
+                        .font(.mali(12))
                         .foregroundColor(hideFinancials ? .gray : .cyan)
                 }
             }
         }
-        .padding(18)
-        .liquidGlass(cornerRadius: 22)
+        .padding(14)
+        .liquidGlass(cornerRadius: 18)
         .padding(.horizontal)
     }
 
@@ -894,36 +896,36 @@ struct ContentView: View {
         let badgeColor: Color = isTele ? Color(red: 0.20, green: 0.65, blue: 0.95) : Color(red: 0.15, green: 0.82, blue: 0.45)
         let iconName = isTele ? "paperplane.fill" : "phone.bubble.left.fill"
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
                 Button {
                     openChatLink(item.kontakBuyer)
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: iconName).font(.system(size: 13, weight: .bold))
-                        Text(item.displayName).font(.mali(14))
+                    HStack(spacing: 5) {
+                        Image(systemName: iconName).font(.system(size: 12, weight: .bold))
+                        Text(item.displayName).font(.mali(13))
                     }
                     .foregroundColor(badgeColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
                     .background(badgeColor.opacity(0.18))
-                    .cornerRadius(10)
+                    .cornerRadius(8)
                 }
 
                 Text("Kloter #\(item.batchNumber)")
-                    .font(.mali(11))
+                    .font(.mali(10))
                     .foregroundColor(.white.opacity(0.7))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
                     .background(Color.white.opacity(0.08))
-                    .cornerRadius(6)
+                    .cornerRadius(5)
 
                 Spacer()
 
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     if !hideFinancials {
                         Text(AppFormatters.idr(item.hargaJual))
-                            .font(.mali(13))
+                            .font(.mali(12))
                             .foregroundColor(.cyan)
                     }
 
@@ -931,24 +933,24 @@ struct ContentView: View {
                         itemToEdit = item
                     } label: {
                         Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 22))
+                            .font(.system(size: 19))
                             .foregroundColor(.white.opacity(0.6))
                     }
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 if item.hasCertZip {
                     Button {
                         shareCertZip(item: item)
                     } label: {
                         Label("ZIP Cert", systemImage: "doc.zipper")
-                            .font(.mali(11))
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 6)
+                            .font(.mali(10))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
                             .background(Color.cyan.opacity(0.18))
                             .foregroundColor(.cyan)
-                            .cornerRadius(8)
+                            .cornerRadius(7)
                     }
                 }
 
@@ -956,81 +958,81 @@ struct ContentView: View {
                     copyLCSignTutorial(item: item)
                 } label: {
                     Label("Panduan LCSign 📋", systemImage: "doc.on.clipboard.fill")
-                        .font(.mali(11))
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
+                        .font(.mali(10))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
                         .background(Color.green.opacity(0.18))
                         .foregroundColor(.green)
-                        .cornerRadius(8)
+                        .cornerRadius(7)
                 }
 
                 if let pass = item.certPassword, !pass.isEmpty {
                     Button {
                         UIPasteboard.general.string = pass
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 3) {
                             Image(systemName: "key.fill")
                             Text("Pass: \(hideFinancials ? "••••" : pass)")
                         }
-                        .font(.mali(11))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                        .font(.mali(10))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 5)
                         .background(Color.yellow.opacity(0.15))
                         .foregroundColor(.yellow)
-                        .cornerRadius(8)
+                        .cornerRadius(7)
                     }
                 }
                 Spacer()
             }
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text("UDID:").font(.mali(11)).foregroundColor(.gray)
+                    Text("UDID:").font(.mali(10)).foregroundColor(.gray)
                     Spacer()
                     Button {
                         UIPasteboard.general.string = item.udid
                     } label: {
                         Label("Salin", systemImage: "doc.on.doc")
-                            .font(.mali(11))
+                            .font(.mali(10))
                             .foregroundColor(.cyan)
                     }
                 }
                 Text(hideFinancials ? maskUDID(item.udid) : item.udid)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(.white.opacity(0.95))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(10)
+            .padding(8)
             .background(Color.black.opacity(0.35))
-            .cornerRadius(10)
+            .cornerRadius(8)
 
             if !item.catatan.isEmpty && item.catatan != "-" {
                 Text("📱 \(item.catatan)")
-                    .font(.mali(11))
+                    .font(.mali(10))
                     .foregroundColor(.gray)
             }
 
             Divider().background(Color.white.opacity(0.1))
 
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 HStack {
                     StatusGaransiView(now: timerNow, exp: item.expiredGaransiDate, durasi: item.durasiHari)
                     Spacer()
-                    Text("Garansi s/d: \(item.durasiHari == 0 ? "Non-Garansi" : AppFormatters.date(item.expiredGaransiDate))")
-                        .font(.mali(11))
+                    Text("Garansi: \(item.durasiHari == 0 ? "Non-Garansi" : AppFormatters.date(item.expiredGaransiDate))")
+                        .font(.mali(10))
                         .foregroundColor(item.durasiHari == 0 ? .gray : .orange.opacity(0.95))
                 }
                 HStack {
-                    Text("Daftar: \(AppFormatters.date(item.tanggalDaftar))").font(.mali(11)).foregroundColor(.gray)
+                    Text("Daftar: \(AppFormatters.date(item.tanggalDaftar))").font(.mali(10)).foregroundColor(.gray)
                     Spacer()
                     Text("Cert Apple: \(AppFormatters.date(item.expiredCertAppleDate))")
-                        .font(.mali(11))
+                        .font(.mali(10))
                         .foregroundColor(.cyan.opacity(0.85))
                 }
             }
         }
-        .padding(16)
-        .liquidGlass(cornerRadius: 18)
+        .padding(12)
+        .liquidGlass(cornerRadius: 16)
         .padding(.horizontal)
     }
 
@@ -1176,7 +1178,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Formulir Tambah / Edit Penjualan (Liquid Glass Modern)
+// MARK: - Formulir Tambah / Edit Penjualan (Compact Liquid Glass)
 struct SaleFormSheet: View {
     @Environment(\.dismiss) var dismiss
 
@@ -1217,142 +1219,137 @@ struct SaleFormSheet: View {
                 Color.black.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 16) {
-                        // Section: Buyer Info
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("INFORMASI PEMBELI").font(.mali(12)).foregroundColor(.cyan)
+                    VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("INFORMASI PEMBELI").font(.mali(11)).foregroundColor(.cyan)
 
                             TextField("Nama Buyer (Boleh kosong)", text: $namaBuyer)
-                                .font(.mali(14))
-                                .padding(12)
+                                .font(.mali(13))
+                                .padding(10)
                                 .background(Color.white.opacity(0.06))
-                                .cornerRadius(12)
+                                .cornerRadius(10)
 
                             TextField("Nomor WA (08xxx) atau Telegram (@username)", text: $kontakBuyer)
-                                .font(.mali(14))
+                                .font(.mali(13))
                                 .keyboardType(.emailAddress)
                                 .autocapitalization(.none)
-                                .padding(12)
+                                .padding(10)
                                 .background(Color.white.opacity(0.06))
-                                .cornerRadius(12)
+                                .cornerRadius(10)
                         }
-                        .padding(16)
-                        .liquidGlass(cornerRadius: 18)
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
                         .padding(.horizontal)
 
-                        // Section: Harga
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("HARGA JUAL").font(.mali(12)).foregroundColor(.cyan)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("HARGA JUAL").font(.mali(11)).foregroundColor(.cyan)
 
                             HStack {
-                                Text("Nominal (Rp)").font(.mali(14))
+                                Text("Nominal (Rp)").font(.mali(13))
                                 Spacer()
                                 TextField("60000", text: $hargaJualText)
                                     .keyboardType(.numberPad)
                                     .multilineTextAlignment(.trailing)
-                                    .font(.mali(16))
+                                    .font(.mali(15))
                                     .foregroundColor(.cyan)
                             }
-                            .padding(12)
+                            .padding(10)
                             .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
+                            .cornerRadius(10)
                         }
-                        .padding(16)
-                        .liquidGlass(cornerRadius: 18)
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
                         .padding(.horizontal)
 
-                        // Section: Berkas Sertifikat
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("BERKAS ZIP & KATA SANDI").font(.mali(12)).foregroundColor(.cyan)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("BERKAS ZIP & KATA SANDI").font(.mali(11)).foregroundColor(.cyan)
 
                             if zipFileName != nil {
                                 HStack {
                                     Image(systemName: "doc.zipper").foregroundColor(.cyan)
-                                    Text("ZIP Sertifikat Terpasang ✅").font(.mali(13)).foregroundColor(.green)
+                                    Text("ZIP Sertifikat Terpasang ✅").font(.mali(12)).foregroundColor(.green)
                                     Spacer()
                                     Button("Hapus") {
                                         CertStorageManager.shared.deleteFile(fileName: zipFileName)
                                         zipFileName = nil
                                     }
-                                    .font(.mali(12))
+                                    .font(.mali(11))
                                     .foregroundColor(.red)
                                 }
-                                .padding(12)
+                                .padding(10)
                                 .background(Color.white.opacity(0.06))
-                                .cornerRadius(12)
+                                .cornerRadius(10)
                             } else {
                                 Button {
                                     showZipPicker = true
                                 } label: {
                                     HStack {
                                         Image(systemName: "doc.badge.plus").foregroundColor(.cyan)
-                                        Text("Pilih Berkas ZIP Cert").font(.mali(14)).foregroundColor(.cyan)
+                                        Text("Pilih Berkas ZIP Cert").font(.mali(13)).foregroundColor(.cyan)
                                         Spacer()
                                         Image(systemName: "chevron.right").foregroundColor(.gray)
                                     }
-                                    .padding(12)
+                                    .padding(10)
                                     .background(Color.white.opacity(0.06))
-                                    .cornerRadius(12)
+                                    .cornerRadius(10)
                                 }
                             }
 
                             HStack {
                                 Image(systemName: "key.fill").foregroundColor(.yellow)
                                 TextField("Password Cert (default: ibaalcert)", text: $certPassword)
-                                    .font(.mali(14))
+                                    .font(.mali(13))
                                     .autocapitalization(.none)
                             }
-                            .padding(12)
+                            .padding(10)
                             .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
+                            .cornerRadius(10)
                         }
-                        .padding(16)
-                        .liquidGlass(cornerRadius: 18)
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
                         .padding(.horizontal)
 
-                        // Section: Garansi
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("GARANSI & TANGGAL").font(.mali(12)).foregroundColor(.cyan)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("GARANSI & TANGGAL").font(.mali(11)).foregroundColor(.cyan)
 
                             DatePicker("Tanggal Masuk", selection: $tanggalDaftar, displayedComponents: [.date, .hourAndMinute])
-                                .font(.mali(14))
-                                .padding(10)
+                                .font(.mali(13))
+                                .padding(8)
                                 .background(Color.white.opacity(0.06))
-                                .cornerRadius(12)
+                                .cornerRadius(10)
 
                             Picker("Paket Garansi", selection: $selectedGaransi) {
                                 ForEach(opsiGaransi) { item in
-                                    Text(item.name).font(.mali(13)).tag(item.id)
+                                    Text(item.name).font(.mali(12)).tag(item.id)
                                 }
                             }
                             .pickerStyle(.menu)
-                            .padding(10)
+                            .padding(8)
                             .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
+                            .cornerRadius(10)
                         }
-                        .padding(16)
-                        .liquidGlass(cornerRadius: 18)
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
                         .padding(.horizontal)
 
-                        // Section: UDID & Device
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("NOMOR UDID").font(.mali(12)).foregroundColor(.cyan)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("NOMOR UDID").font(.mali(11)).foregroundColor(.cyan)
 
                             TextEditor(text: $udid)
-                                .frame(minHeight: 50)
-                                .font(.system(size: 13, design: .monospaced))
-                                .padding(8)
+                                .frame(minHeight: 46)
+                                .font(.system(size: 12, design: .monospaced))
+                                .padding(6)
                                 .background(Color.white.opacity(0.06))
-                                .cornerRadius(12)
+                                .cornerRadius(10)
 
                             TextField("Catatan HP (misal: iPhone 11 128GB)", text: $catatan)
-                                .font(.mali(14))
-                                .padding(12)
+                                .font(.mali(13))
+                                .padding(10)
                                 .background(Color.white.opacity(0.06))
-                                .cornerRadius(12)
+                                .cornerRadius(10)
                         }
-                        .padding(16)
-                        .liquidGlass(cornerRadius: 18)
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
                         .padding(.horizontal)
 
                         if itemToEdit != nil {
@@ -1361,26 +1358,27 @@ struct SaleFormSheet: View {
                                 dismiss()
                             } label: {
                                 Text("Hapus Transaksi Ini")
-                                    .font(.mali(14))
+                                    .font(.mali(13))
                                     .foregroundColor(.red)
                                     .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
+                                    .padding(.vertical, 12)
                                     .background(Color.red.opacity(0.15))
-                                    .cornerRadius(14)
+                                    .cornerRadius(12)
                             }
                             .padding(.horizontal)
                         }
                     }
-                    .padding(.vertical)
+                    .padding(.vertical, 10)
                 }
             }
             .navigationTitle(itemToEdit == nil ? "Tambah Penjualan" : "Edit Penjualan")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Batal") { dismiss() }.font(.mali(14))
+                    Button("Batal") { dismiss() }.font(.mali(13))
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Simpan") { validateAndSave() }.font(.mali(15)).foregroundColor(.cyan)
+                    Button("Simpan") { validateAndSave() }.font(.mali(14)).foregroundColor(.cyan)
                 }
             }
             .fileImporter(isPresented: $showZipPicker, allowedContentTypes: [.zip, .archive, .data]) { res in
@@ -1397,7 +1395,7 @@ struct SaleFormSheet: View {
                     }
                 }
             } message: {
-                Text(duplicateDetails).font(.mali(13))
+                Text(duplicateDetails).font(.mali(12))
             }
             .onAppear {
                 if let item = itemToEdit {
@@ -1451,7 +1449,7 @@ struct SaleFormSheet: View {
     }
 }
 
-// MARK: - Lembar Ubah Modal & Fee Admin
+// MARK: - Lembar Ubah Modal & Fee Admin Compact
 struct EditBatchModalSheet: View {
     @Environment(\.dismiss) var dismiss
     var batchNumber: Int
@@ -1467,48 +1465,49 @@ struct EditBatchModalSheet: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                VStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("MODAL KLOTER #\(batchNumber)").font(.mali(12)).foregroundColor(.cyan)
+                VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("MODAL KLOTER #\(batchNumber)").font(.mali(11)).foregroundColor(.cyan)
                         TextField("0", text: $modalText)
                             .keyboardType(.numberPad)
-                            .font(.mali(16))
+                            .font(.mali(15))
                             .foregroundColor(.cyan)
-                            .padding(12)
+                            .padding(10)
                             .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
+                            .cornerRadius(10)
                     }
-                    .padding(16)
-                    .liquidGlass(cornerRadius: 18)
+                    .padding(12)
+                    .liquidGlass(cornerRadius: 16)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("POTONGAN GAJI / FEE ADMIN").font(.mali(12)).foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("POTONGAN GAJI / FEE ADMIN").font(.mali(11)).foregroundColor(.orange)
                         TextField("0", text: $adminFeeText)
                             .keyboardType(.numberPad)
-                            .font(.mali(16))
+                            .font(.mali(15))
                             .foregroundColor(.orange)
-                            .padding(12)
+                            .padding(10)
                             .background(Color.white.opacity(0.06))
-                            .cornerRadius(12)
+                            .cornerRadius(10)
                     }
-                    .padding(16)
-                    .liquidGlass(cornerRadius: 18)
+                    .padding(12)
+                    .liquidGlass(cornerRadius: 16)
 
                     Spacer()
                 }
                 .padding()
             }
             .navigationTitle("Modal & Fee #\(batchNumber)")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Batal") { dismiss() }.font(.mali(14))
+                    Button("Batal") { dismiss() }.font(.mali(13))
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Simpan") {
                         onSave(Int(modalText) ?? 0, Int(adminFeeText) ?? 0)
                         dismiss()
                     }
-                    .font(.mali(15))
+                    .font(.mali(14))
                     .foregroundColor(.cyan)
                 }
             }
@@ -1520,7 +1519,7 @@ struct EditBatchModalSheet: View {
     }
 }
 
-// MARK: - Arsip Kloter Selesai
+// MARK: - Arsip Kloter Selesai Compact
 struct BatchHistorySheet: View {
     @Environment(\.dismiss) var dismiss
     var allItems: [SaleItem]
@@ -1549,17 +1548,17 @@ struct BatchHistorySheet: View {
                 Color.black.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 16) {
-                        VStack(spacing: 8) {
-                            Text("TOTAL UNTUNG BERSIH").font(.mali(12)).foregroundColor(.green.opacity(0.8))
+                    VStack(spacing: 12) {
+                        VStack(spacing: 4) {
+                            Text("TOTAL UNTUNG BERSIH").font(.mali(11)).foregroundColor(.green.opacity(0.8))
                             Text(hideFinancials ? "Rp ••••••••" : "+\(AppFormatters.idr(totalUntung))")
-                                .font(.mali(28))
+                                .font(.mali(22))
                                 .foregroundColor(hideFinancials ? .gray : .green)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .padding(12)
                         .background(Color.white.opacity(0.06))
-                        .cornerRadius(16)
+                        .cornerRadius(14)
                         .padding(.horizontal)
 
                         ForEach(completedBatches, id: \.self) { b in
@@ -1568,35 +1567,36 @@ struct BatchHistorySheet: View {
                             let modal = BatchModalManager.shared.getModal(for: b)
                             let fee = BatchAdminFeeManager.shared.getFee(for: b)
 
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 6) {
                                 HStack {
-                                    Text("Kloter #\(b)").font(.mali(16))
+                                    Text("Kloter #\(b)").font(.mali(14))
                                     Spacer()
-                                    Text("5/5 Selesai ✅").font(.mali(11)).foregroundColor(.green)
+                                    Text("5/5 Selesai ✅").font(.mali(10)).foregroundColor(.green)
                                 }
                                 Divider().background(Color.white.opacity(0.1))
                                 HStack {
                                     Text("Untung: \(hideFinancials ? "••••" : AppFormatters.idr((omset - modal) - fee))")
-                                        .font(.mali(13))
+                                        .font(.mali(12))
                                         .foregroundColor(.green)
                                     Spacer()
                                     Text("Omset: \(hideFinancials ? "••••" : AppFormatters.idr(omset))")
-                                        .font(.mali(12))
+                                        .font(.mali(11))
                                         .foregroundColor(.cyan)
                                 }
                             }
-                            .padding()
-                            .liquidGlass(cornerRadius: 16)
+                            .padding(12)
+                            .liquidGlass(cornerRadius: 14)
                             .padding(.horizontal)
                         }
                     }
-                    .padding(.vertical)
+                    .padding(.vertical, 10)
                 }
             }
             .navigationTitle("Arsip Kloter")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Tutup") { dismiss() }.font(.mali(14)).foregroundColor(.cyan)
+                    Button("Tutup") { dismiss() }.font(.mali(13)).foregroundColor(.cyan)
                 }
             }
         }
