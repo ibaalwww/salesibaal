@@ -23,8 +23,7 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: ibaal-cert-store/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.ibaal.certstore
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        PRODUCT_BUNDLE_IDENTIFIER: com.ibaal.store
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_ALLOWED: "NO"
