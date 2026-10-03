@@ -9,7 +9,7 @@ settings:
   base:
     PRODUCT_NAME: "ibaal cert store"
     SWIFT_VERSION: "5.0"
-    TARGETED_DEVICE_FAMILY: "1,2"
+    TARGETED_DEVICE_FAMILY: "1"
 
 targets:
   ibaal-cert-store:
