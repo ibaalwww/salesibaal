@@ -14,24 +14,61 @@ jobs:
 
       - name: Select Xcode 16
         run: |
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.2.app
-          elif [ -d "/Applications/Xcode_16.1.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.1.app
-          elif [ -d "/Applications/Xcode_16.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.app
-          fi
+          sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s /Applications/Xcode_16.1.app || sudo xcode-select -s /Applications/Xcode_16.app
           xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Setup Full Screen Assets & Configs (Fix Letterbox)
+        run: |
+          # 1. Buat folder Assets.xcassets dan AppIcon kosong agar iOS mendeteksi ini sebagai aplikasi modern
+          mkdir -p ibaal-cert-store/Assets.xcassets/AppIcon.appiconset
+          cat << 'EOF' > ibaal-cert-store/Assets.xcassets/AppIcon.appiconset/Contents.json
+          {
+            "images" : [],
+            "info" : { "author" : "xcode", "version" : 1 }
+          }
+          EOF
+          
+          # 2. Buat file LaunchScreen.storyboard fisik untuk merender layar penuh
+          cat << 'EOF' > ibaal-cert-store/LaunchScreen.storyboard
+          <?xml version="1.0" encoding="UTF-8"?>
+          <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+              <device id="retina6_12" orientation="portrait" appearance="dark"/>
+              <dependencies>
+                  <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
+                  <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+                  <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+              </dependencies>
+              <scenes>
+                  <scene sceneID="EHf-IW-A2E">
+                      <objects>
+                          <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                              <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                                  <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                                  <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                                  <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                                  <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                              </view>
+                          </viewController>
+                          <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+                      </objects>
+                      <point key="canvasLocation" x="53" y="375"/>
+                  </scene>
+              </scenes>
+          </document>
+          EOF
+
+          # 3. Hapus UILaunchScreen lama dan paksa iOS menggunakan Storyboard Layar Penuh
+          /usr/libexec/PlistBuddy -c "Delete :UILaunchScreen" ibaal-cert-store/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :UILaunchStoryboardName string LaunchScreen" ibaal-cert-store/Info.plist || /usr/libexec/PlistBuddy -c "Set :UILaunchStoryboardName LaunchScreen" ibaal-cert-store/Info.plist
+          
+          # 4. Paksa project.yml menjadi khusus iPhone (mencegah mode rasio iPad)
+          sed -i '' 's/TARGETED_DEVICE_FAMILY.*/TARGETED_DEVICE_FAMILY: "1"/g' project.yml
+
       - name: Generate Xcode Project
         run: xcodegen generate
-
-      - name: Fix Xcode Project Format Compatibility
-        run: |
-          sed -i '' -E 's/objectVersion = [0-9]+/objectVersion = 56/' ibaal-cert-store.xcodeproj/project.pbxproj || true
 
       - name: Build Application Archive
         run: |
