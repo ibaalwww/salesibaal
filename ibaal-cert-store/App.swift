@@ -167,7 +167,7 @@ class CertStorageManager {
     }
 }
 
-// MARK: - Model Data Penjualan (Telah Diupdate dengan Fitur DP)
+// MARK: - Model Data Penjualan
 struct SaleItem: Identifiable, Codable, Hashable {
     var id: UUID = UUID()
     var tanggalDaftar: Date
@@ -181,7 +181,7 @@ struct SaleItem: Identifiable, Codable, Hashable {
     var zipFileName: String? = nil
     var certPassword: String? = nil
     
-    // Properti Opsional Untuk Backup Lama (Kalau nil berarti lunas)
+    // Fitur DP / Kasbon
     var telahDibayar: Int? = nil
 
     var nominalDibayar: Int {
@@ -227,7 +227,7 @@ struct SaleItem: Identifiable, Codable, Hashable {
     }
 }
 
-// MARK: - Struktur Data Cadangan Lengkap dengan Modal & Fee
+// MARK: - Struktur Data Cadangan
 struct BackupPayload: Codable {
     var items: [SaleItem]
     var batchModals: [String: Int]
@@ -254,7 +254,7 @@ struct GaransiOption: Identifiable {
     let name: String
 }
 
-// MARK: - Modifier Liquid Glass Modern
+// MARK: - Modifier Liquid Glass
 extension View {
     func liquidGlass(cornerRadius: CGFloat = 16) -> some View {
         self
@@ -410,6 +410,24 @@ struct LiquidPrismSwitch: View {
     }
 }
 
+// MARK: - Helper Pendeteksi UDID (Auto-Deteksi iPhone)
+func detectDevice(from udid: String) -> String? {
+    let clean = udid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    guard clean.count >= 24 && clean.contains("-") else { return nil }
+    let prefix = clean.components(separatedBy: "-").first ?? ""
+    
+    switch prefix {
+    case "00008020": return "iPhone XS / XR / 11"
+    case "00008030": return "iPhone 11 Series / SE2"
+    case "00008101": return "iPhone 12 Series"
+    case "00008110": return "iPhone 13 / 14 / SE3"
+    case "00008120": return "iPhone 14 Pro / 15 Series"
+    case "00008130": return "iPhone 15 Pro Series"
+    case "00008140": return "iPhone 16 Series"
+    default: return nil
+    }
+}
+
 // MARK: - Tampilan Utama
 struct ContentView: View {
     @Environment(\.openURL) private var openURL
@@ -450,7 +468,6 @@ struct ContentView: View {
     var modalKloterAktif: Int { BatchModalManager.shared.getModal(for: activeBatchNumber) }
     var feeAdminKloterAktif: Int { BatchAdminFeeManager.shared.getFee(for: activeBatchNumber) }
     
-    // Perhitungan Real Uang Masuk vs Potensi Omset
     var omsetKloterAktif: Int { activeBatchItems.reduce(0) { $0 + $1.hargaJual } }
     var uangMasukKloterAktif: Int { activeBatchItems.reduce(0) { $0 + $1.nominalDibayar } }
     var piutangKloterAktif: Int { activeBatchItems.reduce(0) { $0 + $1.sisaPembayaran } }
@@ -566,6 +583,7 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
+            // Menu Dropdown 3 Titik
             if showOptionsMenu {
                 Color.black.opacity(0.45)
                     .ignoresSafeArea()
@@ -579,7 +597,6 @@ struct ContentView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
                             
-                            // 1. Arsip Kloter Selesai
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showHistoryModal = true
@@ -594,7 +611,6 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
                             
-                            // 2. Tampilkan/Sembunyikan Saldo
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     hideFinancials.toggle()
@@ -611,7 +627,6 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
-                            // 3. Edit Modal Kloter Aktif
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showEditBatchModal = true
@@ -628,7 +643,6 @@ struct ContentView: View {
 
                             Divider().background(Color.white.opacity(0.15))
 
-                            // 4. Cadangkan Data
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 exportBackup()
@@ -643,7 +657,6 @@ struct ContentView: View {
                                 .padding(.vertical, 8)
                             }
 
-                            // 5. Pulihkan Data
                             Button {
                                 withAnimation { showOptionsMenu = false }
                                 showFileImporter = true
@@ -737,7 +750,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Baris Header Presisi 1 Baris (Judul Tepat di Tengah)
     private var customTopBar: some View {
         ZStack {
             HStack {
@@ -768,7 +780,6 @@ struct ContentView: View {
                 }
             }
             
-            // Text Absolute di tengah
             Text("i B a a L CERT STORE")
                 .font(.mali(19))
                 .foregroundColor(.white)
@@ -1043,15 +1054,16 @@ struct ContentView: View {
                     }
                 }
 
+                // TOMBOL NOTA PENJUALAN
                 Button {
-                    copyLCSignTutorial(item: item)
+                    copyNotaPembelian(item: item)
                 } label: {
-                    Label("Panduan LCSign 📋", systemImage: "doc.on.clipboard.fill")
+                    Label("Nota 📝", systemImage: "text.receipt")
                         .font(.mali(10))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
-                        .background(Color.green.opacity(0.18))
-                        .foregroundColor(.green)
+                        .background(Color.purple.opacity(0.18))
+                        .foregroundColor(.purple)
                         .cornerRadius(6)
                 }
 
@@ -1125,26 +1137,23 @@ struct ContentView: View {
         .padding(.horizontal)
     }
 
-    private func copyLCSignTutorial(item: SaleItem) {
+    private func copyNotaPembelian(item: SaleItem) {
+        let status = item.isLunas ? "LUNAS ✅" : "BELUM LUNAS (Kurang \(AppFormatters.idr(item.sisaPembayaran))) ❌"
         let pesan = """
-        1️⃣ *INSTAL APLIKASI LCSIGN*
-        • Buka tautan instalasi lewat Safari > klik "Install" > tunggu ikon muncul di layar utama.
-        • Pas pertama kali buka LCSign, kalau ada pop-up muncul, klik "Next" / "Agree" terus sampai masuk menu utama.
-
-        2️⃣ *MODE PENGEMBANG (Khusus iOS 16+)*
-        Pengaturan > Privasi & Keamanan > gulir ke paling bawah > Mode Pengembang > Nyalakan > Restart iPhone.
-
-        3️⃣ *SETELAN WAJIB LCSIGN*
-        Buka LCSign > menu Settings (kanan bawah) > App Configuration.
-        👉 *Samakan semua centangnya seperti foto screenshot yang dikirim di atas.*
-
-        4️⃣ *SELESAI*
-        Sertifikat sudah otomatis terpasang! LCSign langsung siap digunakan untuk pasang file IPA pilihanmu.
-
-        Kalau ada kendala saat pasang, langsung balas chat ini ya kak 🙌
+        🎉 Terima kasih sudah order di i B a a L CERT STORE! 🎉
+        
+        👤 Nama: \(item.displayName)
+        📱 Tipe HP: \(item.catatan.isEmpty ? "-" : item.catatan)
+        🛡 Garansi: \(item.durasiHari == 0 ? "Non-Garansi" : "\(item.durasiHari) Hari")
+        💳 Status Pembayaran: \(status)
+        
+        📝 UDID Perangkat:
+        \(item.udid)
+        
+        Sertifikat berhasil didaftarkan! Jika butuh bantuan atau panduan instalasi, silakan balas chat ini ya kak. 🙌
         """
         UIPasteboard.general.string = pesan
-        alertMessage = "Panduan instalasi LCSign berhasil disalin!"
+        alertMessage = "Nota pembelian berhasil disalin ke clipboard!"
         showAlert = true
     }
 
@@ -1233,21 +1242,20 @@ struct ContentView: View {
             
             if let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) {
                 items = payload.items
-                let defaults = UserDefaults.standard
-                defaults.set(payload.batchModals, forKey: "saved_batch_modals")
-                defaults.set(payload.batchAdminFees, forKey: "saved_batch_admin_fees")
-                defaults.synchronize()
-                
+                let def = UserDefaults.standard
+                def.set(payload.batchModals, forKey: "saved_batch_modals")
+                def.set(payload.batchAdminFees, forKey: "saved_batch_admin_fees")
+                def.synchronize()
                 recalculateAndSave()
-                alertMessage = "Sukses! Berhasil memulihkan \(payload.items.count) transaksi beserta data modal & fee admin."
-            } else if let importedItems = try? JSONDecoder().decode([SaleItem].self, from: data) {
-                items = importedItems
+                alertMessage = "Sukses memulihkan \(payload.items.count) transaksi & Data Modal."
+            } else if let im = try? JSONDecoder().decode([SaleItem].self, from: data) {
+                items = im
                 recalculateAndSave()
-                alertMessage = "Sukses! Berhasil memulihkan \(importedItems.count) transaksi."
+                alertMessage = "Sukses memulihkan \(im.count) transaksi."
             } else {
-                throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Format berkas tidak valid"])
+                throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid format"])
             }
-
+            
             forceRefresh = UUID()
             showAlert = true
         } catch {
@@ -1287,7 +1295,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Formulir Tambah / Edit Penjualan (Termasuk Fitur Lunas/DP)
+// MARK: - Formulir Tambah / Edit Penjualan
 struct SaleFormSheet: View {
     @Environment(\.dismiss) var dismiss
 
@@ -1354,7 +1362,6 @@ struct SaleFormSheet: View {
                         .liquidGlass(cornerRadius: 16)
                         .padding(.horizontal)
 
-                        // Menu Harga & DP
                         VStack(alignment: .leading, spacing: 6) {
                             Text("HARGA JUAL & PEMBAYARAN").font(.mali(12)).foregroundColor(.cyan)
 
@@ -1393,6 +1400,34 @@ struct SaleFormSheet: View {
                                 .background(Color.orange.opacity(0.15))
                                 .cornerRadius(10)
                             }
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
+                        .padding(.horizontal)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("NOMOR UDID").font(.mali(12)).foregroundColor(.cyan)
+
+                            TextEditor(text: $udid)
+                                .frame(minHeight: 46)
+                                .font(.system(size: 12, design: .monospaced))
+                                .padding(6)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(10)
+                                // Auto-Deteksi UDID saat dicopaste
+                                .onChange(of: udid) { newValue in
+                                    if catatan.trimmingCharacters(in: .whitespaces).isEmpty {
+                                        if let model = detectDevice(from: newValue) {
+                                            catatan = model
+                                        }
+                                    }
+                                }
+
+                            TextField("Catatan HP (misal: iPhone 11 128GB)", text: $catatan)
+                                .font(.mali(14))
+                                .padding(10)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(10)
                         }
                         .padding(12)
                         .liquidGlass(cornerRadius: 16)
@@ -1464,26 +1499,6 @@ struct SaleFormSheet: View {
                             .padding(8)
                             .background(Color.white.opacity(0.06))
                             .cornerRadius(10)
-                        }
-                        .padding(12)
-                        .liquidGlass(cornerRadius: 16)
-                        .padding(.horizontal)
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("NOMOR UDID").font(.mali(12)).foregroundColor(.cyan)
-
-                            TextEditor(text: $udid)
-                                .frame(minHeight: 46)
-                                .font(.system(size: 12, design: .monospaced))
-                                .padding(6)
-                                .background(Color.white.opacity(0.06))
-                                .cornerRadius(10)
-
-                            TextField("Catatan HP (misal: iPhone 11 128GB)", text: $catatan)
-                                .font(.mali(14))
-                                .padding(10)
-                                .background(Color.white.opacity(0.06))
-                                .cornerRadius(10)
                         }
                         .padding(12)
                         .liquidGlass(cornerRadius: 16)
@@ -1726,7 +1741,6 @@ struct BatchHistorySheet: View {
                                 HStack {
                                     Text("Kloter #\(b)").font(.mali(15))
                                     
-                                    // Tombol Edit Modal
                                     Button {
                                         batchToEdit = EditableBatch(id: b)
                                     } label: {
@@ -1748,7 +1762,6 @@ struct BatchHistorySheet: View {
                                 
                                 Divider().background(Color.white.opacity(0.1))
                                 
-                                // Rincian Finansial Berwarna (Kiri: Pengeluaran & Untung, Kanan: Omset)
                                 HStack(alignment: .top) {
                                     VStack(alignment: .leading, spacing: 5) {
                                         Text("Modal: \(hideFinancials ? "••••" : AppFormatters.idr(modal))")
@@ -1781,7 +1794,6 @@ struct BatchHistorySheet: View {
                                 }
                                 .padding(.vertical, 4)
                                 
-                                // Daftar Pembeli
                                 VStack(spacing: 5) {
                                     ForEach(bItems, id: \.id) { item in
                                         HStack(alignment: .center) {
@@ -1840,3 +1852,4 @@ struct BatchHistorySheet: View {
         }
     }
 }
+
