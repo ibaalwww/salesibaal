@@ -2,41 +2,19 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-// MARK: - App Theme (Solusi Anti Error 65 / Compiler Timeout)
+// MARK: - App Theme
 struct AppTheme {
     static let glassBg = LinearGradient(
         gradient: Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.02), Color.clear]),
-        startPoint: .top,
-        endPoint: .center
+        startPoint: .top, endPoint: .center
     )
-    
     static let glassBorder = LinearGradient(
         gradient: Gradient(colors: [Color.white.opacity(0.4), Color.white.opacity(0.1), Color.cyan.opacity(0.3)]),
-        startPoint: .topLeading,
-        endPoint: .bottomTrailing
+        startPoint: .topLeading, endPoint: .bottomTrailing
     )
 }
 
-// MARK: - Modifier Liquid Glass Modular
-extension View {
-    func liquidGlass(cornerRadius: CGFloat = 16) -> some View {
-        self
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(Color.black.opacity(0.45))
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(AppTheme.glassBg)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(AppTheme.glassBorder, lineWidth: 1.0)
-            )
-            .shadow(color: Color.black.opacity(0.5), radius: 10, x: 0, y: 5)
-    }
-}
-
-// MARK: - Format Helper Global
+// MARK: - Format Helper Global (Semua Logika Rumit Dipindah Kesini Biar Swift Nggak Error 65)
 struct AppFormatters {
     static func idr(_ num: Int) -> String {
         let formatter = NumberFormatter()
@@ -52,24 +30,51 @@ struct AppFormatters {
         return f.string(from: d)
     }
     
+    // Helper Teks Dasbor
+    static func dashboardTitle(tab: DebtType) -> String {
+        return tab == .hutangKu ? "TOTAL SISA HUTANG SAYA" : "TOTAL SISA PIUTANG (UANG DI LUAR)"
+    }
+    
+    // Helper Status
     static func statusText(tab: DebtType, debt: Int) -> String {
         if tab == .hutangKu { return debt > 0 ? "⚠️ Segera lunasi hutangmu!" : "✅ Bebas hutang" }
         return debt > 0 ? "⚠️ Segera tagih agar kas lancar" : "✅ Semua hutang pelanggan lunas"
     }
     
-    static func trxColor(isHidden: Bool, isPayment: Bool) -> Color {
+    // Helper Warna Hutang (Anti-Ternary Bersarang)
+    static func debtColor(debt: Int, tab: DebtType, isHidden: Bool) -> Color {
+        if isHidden { return .gray }
+        if debt <= 0 { return .green }
+        return tab == .hutangKu ? .red : .orange
+    }
+    
+    // Helper Teks Nominal Disembunyikan
+    static func maskedAmount(_ amount: Int, isHidden: Bool) -> String {
+        return isHidden ? "Rp •••••" : idr(amount)
+    }
+    
+    // Helper Teks Transaksi Disembunyikan
+    static func maskedTrxAmount(amount: Int, isPayment: Bool, isHidden: Bool) -> String {
+        if isHidden {
+            return isPayment ? "- Rp •••••" : "+ Rp •••••"
+        } else {
+            return isPayment ? "-\(idr(amount))" : "+\(idr(amount))"
+        }
+    }
+    
+    // Helper Warna Transaksi
+    static func trxColor(isPayment: Bool, isHidden: Bool) -> Color {
         if isHidden { return .gray }
         return isPayment ? .green : .red
     }
 }
 
-// MARK: - Manajer Auto-Save & Dokumen
+// MARK: - Manajer Auto-Save
 class AutoSaveManager {
     static let shared = AutoSaveManager()
     private var autoBackupURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("iBaalCell_AutoBackup.json")
     }
-    
     func save(_ debtors: [Debtor]) {
         DispatchQueue.global(qos: .background).async {
             do {
@@ -80,15 +85,11 @@ class AutoSaveManager {
             } catch {}
         }
     }
-    
     func loadAutoSave() -> [Debtor]? {
         guard FileManager.default.fileExists(atPath: autoBackupURL.path) else { return nil }
         do {
-            let data = try Data(contentsOf: autoBackupURL)
-            return try JSONDecoder().decode([Debtor].self, from: data)
-        } catch {
-            return nil
-        }
+            return try JSONDecoder().decode([Debtor].self, from: try Data(contentsOf: autoBackupURL))
+        } catch { return nil }
     }
 }
 
@@ -99,7 +100,7 @@ func saveAllData(_ debtors: [Debtor]) {
     AutoSaveManager.shared.save(debtors)
 }
 
-// MARK: - Wrapper File Exporter
+// MARK: - File Exporter (Fitur Backup ke File/iCloud)
 struct JSONDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
     var data: Data
@@ -140,18 +141,34 @@ struct Debtor: Identifiable, Codable, Hashable {
     var totalDibayar: Int { transactions.filter { $0.isPayment }.reduce(0) { $0 + $1.amount } }
 }
 
+// MARK: - Modifier Liquid Glass
+extension View {
+    func liquidGlass(cornerRadius: CGFloat = 16) -> some View {
+        self
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(Color.black.opacity(0.45))
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(AppTheme.glassBg)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(AppTheme.glassBorder, lineWidth: 1.0))
+            .shadow(color: Color.black.opacity(0.5), radius: 10, x: 0, y: 5)
+    }
+}
+
 // MARK: - App Entry Point
 @main
 struct iBaalCellApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .preferredColorScheme(.dark)
+            ContentView().preferredColorScheme(.dark)
         }
     }
 }
 
-// MARK: - Tampilan Utama (Dashboard)
+// MARK: - Tampilan Utama
 struct ContentView: View {
     @State private var debtors: [Debtor] = []
     @State private var showAddDebtor = false
@@ -189,9 +206,7 @@ struct ContentView: View {
                     debtorListView
                 }
                 
-                if showOptionsMenu {
-                    optionsMenuOverlay
-                }
+                if showOptionsMenu { optionsMenuOverlay }
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showAddDebtor) { AddDebtorSheet(debtors: $debtors, currentTab: activeTab) }
@@ -203,14 +218,11 @@ struct ContentView: View {
         .navigationViewStyle(.stack)
     }
     
-    // UI Komponen Dipisah Biar Swift Ga Error 65
     private var backgroundTheme: some View {
         ZStack {
             Color(red: 0.05, green: 0.05, blue: 0.08).ignoresSafeArea()
-            Circle().fill(activeTab == .piutang ? Color.cyan.opacity(0.25) : Color.red.opacity(0.25))
-                .frame(width: 300, height: 300).blur(radius: 100).offset(x: -100, y: -300)
-            Circle().fill(Color.purple.opacity(0.2))
-                .frame(width: 300, height: 300).blur(radius: 100).offset(x: 150, y: 300)
+            Circle().fill(activeTab == .piutang ? Color.cyan.opacity(0.25) : Color.red.opacity(0.25)).frame(width: 300, height: 300).blur(radius: 100).offset(x: -100, y: -300)
+            Circle().fill(Color.purple.opacity(0.2)).frame(width: 300, height: 300).blur(radius: 100).offset(x: 150, y: 300)
         }
     }
     
@@ -219,41 +231,28 @@ struct ContentView: View {
             tabButton(title: "List A (Hutangku)", type: .hutangKu)
             tabButton(title: "List B (Piutang)", type: .piutang)
         }
-        .padding(4)
-        .background(Color.white.opacity(0.1))
-        .cornerRadius(12)
-        .padding(.horizontal)
+        .padding(4).background(Color.white.opacity(0.1)).cornerRadius(12).padding(.horizontal)
     }
     
     private var dashboardCard: some View {
         VStack(spacing: 6) {
-            Text(activeTab == .hutangKu ? "TOTAL SISA HUTANG SAYA" : "TOTAL SISA PIUTANG (UANG DI LUAR)")
+            Text(AppFormatters.dashboardTitle(tab: activeTab))
                 .font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.gray)
-            
-            Text(hideFinancials ? "Rp •••••••" : AppFormatters.idr(totalActiveDebt))
+            Text(AppFormatters.maskedAmount(totalActiveDebt, isHidden: hideFinancials))
                 .font(.system(size: 28, weight: .heavy, design: .rounded))
-                .foregroundColor(hideFinancials ? .gray : (totalActiveDebt <= 0 ? .green : (activeTab == .hutangKu ? .red : .cyan)))
-            
+                .foregroundColor(AppFormatters.debtColor(debt: totalActiveDebt, tab: activeTab, isHidden: hideFinancials))
             Text(AppFormatters.statusText(tab: activeTab, debt: totalActiveDebt))
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundColor(totalActiveDebt > 0 ? .orange.opacity(0.8) : .green)
+                .font(.system(size: 12, weight: .medium, design: .rounded)).foregroundColor(totalActiveDebt > 0 ? .orange.opacity(0.8) : .green)
         }
-        .frame(maxWidth: .infinity)
-        .padding(16)
-        .liquidGlass(cornerRadius: 18)
-        .padding(.horizontal)
+        .frame(maxWidth: .infinity).padding(16).liquidGlass(cornerRadius: 18).padding(.horizontal)
     }
     
     private var searchBarView: some View {
         HStack {
             Image(systemName: "magnifyingglass").foregroundColor(.gray)
-            TextField("Cari nama...", text: $searchText)
-                .font(.system(size: 15, weight: .medium, design: .rounded)).foregroundColor(.white)
+            TextField("Cari nama...", text: $searchText).font(.system(size: 15, weight: .medium, design: .rounded)).foregroundColor(.white)
         }
-        .padding(12)
-        .background(Color.white.opacity(0.08))
-        .cornerRadius(12)
-        .padding(.horizontal)
+        .padding(12).background(Color.white.opacity(0.08)).cornerRadius(12).padding(.horizontal)
     }
     
     private var debtorListView: some View {
@@ -261,10 +260,8 @@ struct ContentView: View {
             VStack(spacing: 12) {
                 if filteredDebtors.isEmpty {
                     VStack(spacing: 10) {
-                        Image(systemName: activeTab == .hutangKu ? "wallet.pass.fill" : "person.3.fill")
-                            .font(.system(size: 40)).foregroundColor(.gray.opacity(0.5))
-                        Text("Belum ada data di daftar ini.")
-                            .font(.system(size: 14, weight: .medium, design: .rounded)).foregroundColor(.gray)
+                        Image(systemName: activeTab == .hutangKu ? "wallet.pass.fill" : "person.3.fill").font(.system(size: 40)).foregroundColor(.gray.opacity(0.5))
+                        Text("Belum ada data di daftar ini.").font(.system(size: 14, weight: .medium, design: .rounded)).foregroundColor(.gray)
                     }
                     .padding(.top, 50)
                 } else {
@@ -275,8 +272,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(.vertical, 8)
-            .padding(.bottom, 40)
+            .padding(.vertical, 8).padding(.bottom, 40)
         }
     }
     
@@ -331,13 +327,9 @@ struct ContentView: View {
             HStack {
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { showOptionsMenu.toggle() }
-                } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundColor(.white).frame(width: 38, height: 38).background(Color.white.opacity(0.12)).clipShape(Circle())
-                }
+                } label: { Image(systemName: "ellipsis").font(.system(size: 16, weight: .bold)).foregroundColor(.white).frame(width: 38, height: 38).background(Color.white.opacity(0.12)).clipShape(Circle()) }
                 Spacer()
-                Button { showAddDebtor = true } label: {
-                    Image(systemName: "plus").font(.system(size: 18, weight: .bold)).foregroundColor(.black).frame(width: 38, height: 38).background(Color.cyan).clipShape(Circle())
-                }
+                Button { showAddDebtor = true } label: { Image(systemName: "plus").font(.system(size: 18, weight: .bold)).foregroundColor(.black).frame(width: 38, height: 38).background(Color.cyan).clipShape(Circle()) }
             }
             Text("i B a a L   C E L L").font(.system(size: 18, weight: .heavy, design: .rounded)).foregroundColor(.white)
         }
@@ -349,12 +341,7 @@ struct ContentView: View {
         return Button {
             withAnimation(.spring()) { activeTab = type; searchText = "" }
         } label: {
-            Text(title)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundColor(isSelected ? .white : .gray)
-                .frame(maxWidth: .infinity).padding(.vertical, 10)
-                .background(isSelected ? Color.white.opacity(0.15) : Color.clear)
-                .cornerRadius(10)
+            Text(title).font(.system(size: 13, weight: .bold, design: .rounded)).foregroundColor(isSelected ? .white : .gray).frame(maxWidth: .infinity).padding(.vertical, 10).background(isSelected ? Color.white.opacity(0.15) : Color.clear).cornerRadius(10)
         }
     }
     
@@ -362,18 +349,14 @@ struct ContentView: View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
                 Text(debtor.name).font(.system(size: 17, weight: .bold, design: .rounded)).foregroundColor(.white)
-                HStack {
-                    Image(systemName: "phone.fill").font(.system(size: 10))
-                    Text(debtor.phone.isEmpty ? "Tidak ada nomor" : debtor.phone).font(.system(size: 12, weight: .medium, design: .rounded))
-                }
-                .foregroundColor(.gray)
+                HStack { Image(systemName: "phone.fill").font(.system(size: 10)); Text(debtor.phone.isEmpty ? "Tidak ada nomor" : debtor.phone).font(.system(size: 12, weight: .medium, design: .rounded)) }.foregroundColor(.gray)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 6) {
                 Text(debtor.type == .hutangKu ? "Sisa Kewajiban:" : "Sisa Hutang:").font(.system(size: 10, weight: .medium, design: .rounded)).foregroundColor(.gray)
-                Text(hideFinancials ? "Rp •••••" : AppFormatters.idr(debtor.totalHutang))
+                Text(AppFormatters.maskedAmount(debtor.totalHutang, isHidden: hideFinancials))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(hideFinancials ? .gray : (debtor.totalHutang > 0 ? (debtor.type == .hutangKu ? .red : .orange) : .green))
+                    .foregroundColor(AppFormatters.debtColor(debt: debtor.totalHutang, tab: debtor.type, isHidden: hideFinancials))
             }
             Image(systemName: "chevron.right").font(.system(size: 14, weight: .bold)).foregroundColor(.cyan).padding(.leading, 8)
         }
@@ -381,8 +364,7 @@ struct ContentView: View {
     }
     
     private func loadData() {
-        if let data = UserDefaults.standard.data(forKey: "ibaal_cell_debtors"),
-           let decoded = try? JSONDecoder().decode([Debtor].self, from: data) {
+        if let data = UserDefaults.standard.data(forKey: "ibaal_cell_debtors"), let decoded = try? JSONDecoder().decode([Debtor].self, from: data) {
             debtors = decoded
         } else if let autoSaved = AutoSaveManager.shared.loadAutoSave(), !autoSaved.isEmpty {
             debtors = autoSaved
@@ -396,10 +378,7 @@ struct ContentView: View {
             backupFileName = "Backup_iBaalCell_\(df.string(from: Date())).json"
             backupDocument = JSONDocument(data: data)
             showFileExporter = true
-        } catch {
-            alertMessage = "Gagal menyiapkan data backup."
-            showAlert = true
-        }
+        } catch { alertMessage = "Gagal menyiapkan data backup."; showAlert = true }
     }
     
     private func handleImportBackup(result: Result<URL, Error>) {
@@ -408,30 +387,21 @@ struct ContentView: View {
             let canAccess = fileURL.startAccessingSecurityScopedResource()
             defer { if canAccess { fileURL.stopAccessingSecurityScopedResource() } }
             let data = try Data(contentsOf: fileURL)
-            let imported = try JSONDecoder().decode([Debtor].self, from: data)
-            debtors = imported
+            debtors = try JSONDecoder().decode([Debtor].self, from: data)
             saveAllData(debtors)
-            alertMessage = "Sukses memulihkan \(imported.count) data!"
-            showAlert = true
-        } catch {
-            alertMessage = "Gagal memulihkan berkas JSON."
-            showAlert = true
-        }
+            alertMessage = "Sukses memulihkan data!"; showAlert = true
+        } catch { alertMessage = "Gagal memulihkan berkas JSON."; showAlert = true }
     }
     
     private func handleExport(result: Result<URL, Error>) {
         switch result {
-        case .success(let url):
-            alertMessage = "Sukses! Data dicadangkan:\n\(url.lastPathComponent)"
-            showAlert = true
-        case .failure(let error):
-            alertMessage = "Gagal mencadangkan: \(error.localizedDescription)"
-            showAlert = true
+        case .success(let url): alertMessage = "Sukses! Data dicadangkan:\n\(url.lastPathComponent)"; showAlert = true
+        case .failure(let error): alertMessage = "Gagal mencadangkan: \(error.localizedDescription)"; showAlert = true
         }
     }
 }
 
-// MARK: - Detail Layar
+// MARK: - Detail Sheet Types
 enum DetailSheetType: Identifiable {
     case add(isPayment: Bool)
     case edit(transactionId: UUID)
@@ -443,6 +413,7 @@ enum DetailSheetType: Identifiable {
     }
 }
 
+// MARK: - Tampilan Detail Profil
 struct DebtorDetailView: View {
     @Environment(\.presentationMode) var presentationMode
     var debtor: Debtor
@@ -477,15 +448,9 @@ struct DebtorDetailView: View {
     private var headerDetailView: some View {
         VStack(spacing: 8) {
             HStack {
-                Button { presentationMode.wrappedValue.dismiss() } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 18, weight: .bold)).foregroundColor(.white).frame(width: 40, height: 40).background(Color.white.opacity(0.1)).clipShape(Circle())
-                }
+                Button { presentationMode.wrappedValue.dismiss() } label: { Image(systemName: "chevron.left").font(.system(size: 18, weight: .bold)).foregroundColor(.white).frame(width: 40, height: 40).background(Color.white.opacity(0.1)).clipShape(Circle()) }
                 Spacer()
-                Button {
-                    allDebtors.removeAll { $0.id == currentDebtor.id }; saveAllData(allDebtors); presentationMode.wrappedValue.dismiss()
-                } label: {
-                    Image(systemName: "trash.fill").font(.system(size: 16)).foregroundColor(.red).frame(width: 40, height: 40).background(Color.red.opacity(0.15)).clipShape(Circle())
-                }
+                Button { allDebtors.removeAll { $0.id == currentDebtor.id }; saveAllData(allDebtors); presentationMode.wrappedValue.dismiss() } label: { Image(systemName: "trash.fill").font(.system(size: 16)).foregroundColor(.red).frame(width: 40, height: 40).background(Color.red.opacity(0.15)).clipShape(Circle()) }
             }
             .padding(.horizontal)
             
@@ -494,19 +459,20 @@ struct DebtorDetailView: View {
             
             VStack(spacing: 4) {
                 Text(isHutangKu ? "SISA HUTANGKU SAAT INI" : "SISA HUTANG DIA SAAT INI").font(.system(size: 11, weight: .bold, design: .rounded)).foregroundColor(.gray)
-                Text(hideFinancials ? "Rp •••••••" : AppFormatters.idr(currentDebtor.totalHutang))
+                
+                Text(AppFormatters.maskedAmount(currentDebtor.totalHutang, isHidden: hideFinancials))
                     .font(.system(size: 36, weight: .heavy, design: .rounded))
-                    .foregroundColor(hideFinancials ? .gray : (currentDebtor.totalHutang > 0 ? (isHutangKu ? .red : .orange) : .green))
+                    .foregroundColor(AppFormatters.debtColor(debt: currentDebtor.totalHutang, tab: currentDebtor.type, isHidden: hideFinancials))
                 
                 HStack(spacing: 20) {
                     VStack(spacing: 4) {
                         Text("TOTAL KESELURUHAN").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundColor(.gray)
-                        Text(hideFinancials ? "Rp •••••" : AppFormatters.idr(currentDebtor.totalPinjaman)).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(hideFinancials ? .gray : .white)
+                        Text(AppFormatters.maskedAmount(currentDebtor.totalPinjaman, isHidden: hideFinancials)).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(hideFinancials ? .gray : .white)
                     }
                     Rectangle().fill(Color.gray.opacity(0.3)).frame(width: 1, height: 24)
                     VStack(spacing: 4) {
                         Text("SUDAH DICICIL").font(.system(size: 10, weight: .bold, design: .rounded)).foregroundColor(.gray)
-                        Text(hideFinancials ? "Rp •••••" : AppFormatters.idr(currentDebtor.totalDibayar)).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(hideFinancials ? .gray : .green)
+                        Text(AppFormatters.maskedAmount(currentDebtor.totalDibayar, isHidden: hideFinancials)).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(hideFinancials ? .gray : .green)
                     }
                 }
                 .padding(.vertical, 10).padding(.horizontal, 16).background(Color.white.opacity(0.05)).cornerRadius(12).padding(.top, 8)
@@ -530,9 +496,7 @@ struct DebtorDetailView: View {
     
     private var historyListView: some View {
         VStack(alignment: .leading) {
-            Text("RIWAYAT TRANSAKSI (Ketuk untuk Edit)")
-                .font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan).padding(.horizontal)
-            
+            Text("RIWAYAT TRANSAKSI (Ketuk untuk Edit)").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan).padding(.horizontal)
             ScrollView {
                 VStack(spacing: 10) {
                     if currentDebtor.transactions.isEmpty {
@@ -553,14 +517,12 @@ struct DebtorDetailView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(trx.note).font(.system(size: 15, weight: .bold, design: .rounded)).foregroundColor(.white)
-                    if trx.note != "Hutang Awal" {
-                        Text(AppFormatters.date(trx.date)).font(.system(size: 11, weight: .medium, design: .rounded)).foregroundColor(.gray)
-                    }
+                    if trx.note != "Hutang Awal" { Text(AppFormatters.date(trx.date)).font(.system(size: 11, weight: .medium, design: .rounded)).foregroundColor(.gray) }
                 }
                 Spacer()
-                Text(hideFinancials ? (trx.isPayment ? "- Rp •••••" : "+ Rp •••••") : (trx.isPayment ? "-\(AppFormatters.idr(trx.amount))" : "+\(AppFormatters.idr(trx.amount))"))
+                Text(AppFormatters.maskedTrxAmount(amount: trx.amount, isPayment: trx.isPayment, isHidden: hideFinancials))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(AppFormatters.trxColor(isHidden: hideFinancials, isPayment: trx.isPayment))
+                    .foregroundColor(AppFormatters.trxColor(isPayment: trx.isPayment, isHidden: hideFinancials))
                 Image(systemName: "pencil").font(.system(size: 14, weight: .bold)).foregroundColor(.white.opacity(0.3)).padding(.leading, 6)
             }
             .padding(14).liquidGlass(cornerRadius: 12).padding(.horizontal)
@@ -569,7 +531,7 @@ struct DebtorDetailView: View {
     }
 }
 
-// MARK: - Form Tambah Pelanggan Baru
+// MARK: - Form Tambah Pelanggan
 struct AddDebtorSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var debtors: [Debtor]
@@ -578,20 +540,23 @@ struct AddDebtorSheet: View {
     @State private var phone = ""
     @State private var initialDebt = ""
     
+    var navTitle: String { return currentTab == .hutangKu ? "Tambah (List A)" : "Tambah (List B)" }
+    var nameTitle: String { return currentTab == .hutangKu ? "NAMA ORANG/TOKO" : "NAMA PELANGGAN" }
+    var namePlaceholder: String { return currentTab == .hutangKu ? "Misal: Distributor" : "Misal: Budi" }
+    
     var body: some View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
                 VStack(spacing: 16) {
-                    inputField(title: currentTab == .hutangKu ? "NAMA ORANG/TOKO" : "NAMA PELANGGAN", placeholder: "Misal: Budi", text: $name, color: .cyan)
+                    inputField(title: nameTitle, placeholder: namePlaceholder, text: $name, color: .cyan)
                     inputField(title: "NOMOR WA (Opsional)", placeholder: "08xxxx", text: $phone, color: .cyan, isNumber: true)
                     inputField(title: "HUTANG KESELURUHAN (Rp)", placeholder: "0", text: $initialDebt, color: .orange, isNumber: true, isLarge: true)
                     Spacer()
                 }
                 .padding()
             }
-            .navigationTitle(currentTab == .hutangKu ? "Tambah (List A)" : "Tambah (List B)")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(navTitle).navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) { Button("Batal") { dismiss() } }
                 ToolbarItem(placement: .navigationBarTrailing) { Button("Simpan") { saveDebtor() }.font(.system(size: 16, weight: .bold)).foregroundColor(.cyan) }
@@ -629,7 +594,6 @@ struct AddTransactionSheet: View {
     var isPayment: Bool
     var isHutangKu: Bool
     @Binding var allDebtors: [Debtor]
-    
     @State private var amount = ""
     @State private var note = ""
     @State private var date = Date()
@@ -651,13 +615,13 @@ struct AddTransactionSheet: View {
                         
                         VStack(alignment: .leading, spacing: 6) {
                             Text("TANGGAL").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                            DatePicker("Pilih Tanggal", selection: $date, displayedComponents: [.date, .hourAndMinute]).font(.system(size: 14, weight: .medium, design: .rounded)).padding(10).background(Color.white.opacity(0.08)).cornerRadius(12)
+                            DatePicker("Pilih", selection: $date, displayedComponents: [.date, .hourAndMinute]).font(.system(size: 14, weight: .medium, design: .rounded)).padding(10).background(Color.white.opacity(0.08)).cornerRadius(12)
                         }
                         .padding(12).liquidGlass(cornerRadius: 16)
                         
                         VStack(alignment: .leading, spacing: 6) {
                             Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                            TextField(isPayment ? "Misal: Transfer BCA" : "Misal: Pulsa Telkomsel", text: $note).font(.system(size: 16, weight: .medium, design: .rounded)).padding(14).background(Color.white.opacity(0.08)).cornerRadius(12)
+                            TextField(isPayment ? "Misal: Transfer BCA" : "Misal: Hutang Baru", text: $note).font(.system(size: 16, weight: .medium, design: .rounded)).padding(14).background(Color.white.opacity(0.08)).cornerRadius(12)
                         }
                         .padding(12).liquidGlass(cornerRadius: 16)
                     }
@@ -674,8 +638,7 @@ struct AddTransactionSheet: View {
     
     private func saveTransaction() {
         guard let amountValue = Int(amount), amountValue > 0 else { return }
-        let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        let finalNote = cleanNote.isEmpty ? (isPayment ? "Pembayaran/Cicilan" : "Tambah Hutang") : cleanNote
+        let finalNote = note.isEmpty ? (isPayment ? "Pembayaran" : "Tambah Hutang") : note
         if let index = allDebtors.firstIndex(where: { $0.id == debtorId }) {
             allDebtors[index].transactions.append(DebtTransaction(date: date, amount: amountValue, note: finalNote, isPayment: isPayment))
             saveAllData(allDebtors)
@@ -690,7 +653,6 @@ struct EditTransactionSheet: View {
     var debtorId: UUID
     var transactionId: UUID
     @Binding var allDebtors: [Debtor]
-    
     @State private var amount = ""
     @State private var note = ""
     @State private var date = Date()
@@ -718,7 +680,7 @@ struct EditTransactionSheet: View {
                         
                         VStack(alignment: .leading, spacing: 6) {
                             Text("TANGGAL").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                            DatePicker("Pilih Tanggal", selection: $date, displayedComponents: [.date, .hourAndMinute]).font(.system(size: 14, weight: .medium, design: .rounded)).padding(10).background(Color.white.opacity(0.08)).cornerRadius(12)
+                            DatePicker("Pilih", selection: $date, displayedComponents: [.date, .hourAndMinute]).font(.system(size: 14, weight: .medium, design: .rounded)).padding(10).background(Color.white.opacity(0.08)).cornerRadius(12)
                         }
                         .padding(12).liquidGlass(cornerRadius: 16)
                         
@@ -753,8 +715,10 @@ struct EditTransactionSheet: View {
     private func saveTransaction() {
         guard let amountValue = Int(amount), amountValue > 0 else { return }
         if let dIndex = allDebtors.firstIndex(where: { $0.id == debtorId }), let tIndex = allDebtors[dIndex].transactions.firstIndex(where: { $0.id == transactionId }) {
-            allDebtors[dIndex].transactions[tIndex].amount = amountValue; allDebtors[dIndex].transactions[tIndex].note = note.isEmpty ? "-" : note
-            allDebtors[dIndex].transactions[tIndex].date = date; allDebtors[dIndex].transactions[tIndex].isPayment = isPayment
+            allDebtors[dIndex].transactions[tIndex].amount = amountValue
+            allDebtors[dIndex].transactions[tIndex].note = note.isEmpty ? "-" : note
+            allDebtors[dIndex].transactions[tIndex].date = date
+            allDebtors[dIndex].transactions[tIndex].isPayment = isPayment
             saveAllData(allDebtors)
         }
         dismiss()
