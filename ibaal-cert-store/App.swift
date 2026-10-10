@@ -316,14 +316,26 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Helper Tipe Sheet (Solusi Anti Bug Nyangkut)
+enum DetailSheetType: Identifiable {
+    case add(isPayment: Bool)
+    case edit(transactionId: UUID)
+    
+    var id: String {
+        switch self {
+        case .add(let p): return "add_\(p)"
+        case .edit(let tid): return "edit_\(tid.uuidString)"
+        }
+    }
+}
+
 // MARK: - Tampilan Detail (Profil Pelanggan & Riwayat)
 struct DebtorDetailView: View {
     @Environment(\.presentationMode) var presentationMode
     var debtor: Debtor
     @Binding var allDebtors: [Debtor]
     
-    @State private var showTransactionSheet = false
-    @State private var isPaymentMode = false
+    @State private var activeSheet: DetailSheetType? = nil
     
     var currentDebtor: Debtor {
         allDebtors.first(where: { $0.id == debtor.id }) ?? debtor
@@ -413,8 +425,8 @@ struct DebtorDetailView: View {
                     // Tombol Aksi
                     HStack(spacing: 12) {
                         Button {
-                            isPaymentMode = false
-                            showTransactionSheet = true
+                            // isPayment = false (Nambah Hutang)
+                            activeSheet = .add(isPayment: false)
                         } label: {
                             HStack {
                                 Image(systemName: "plus.square.fill")
@@ -429,8 +441,8 @@ struct DebtorDetailView: View {
                         }
                         
                         Button {
-                            isPaymentMode = true
-                            showTransactionSheet = true
+                            // isPayment = true (Bayar/Cicil)
+                            activeSheet = .add(isPayment: true)
                         } label: {
                             HStack {
                                 Image(systemName: "minus.square.fill")
@@ -453,8 +465,8 @@ struct DebtorDetailView: View {
                 
                 // Daftar Riwayat
                 VStack(alignment: .leading) {
-                    Text("RIWAYAT TRANSAKSI")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    Text("RIWAYAT TRANSAKSI (Ketuk untuk Edit)")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
                         .foregroundColor(.cyan)
                         .padding(.horizontal)
                     
@@ -478,35 +490,48 @@ struct DebtorDetailView: View {
             }
         }
         .navigationBarHidden(true)
-        .sheet(isPresented: $showTransactionSheet) {
-            AddTransactionSheet(debtorId: currentDebtor.id, isPayment: isPaymentMode, isHutangKu: isHutangKu, allDebtors: $allDebtors)
+        .sheet(item: $activeSheet) { sheetType in
+            switch sheetType {
+            case .add(let isPayment):
+                AddTransactionSheet(debtorId: currentDebtor.id, isPayment: isPayment, isHutangKu: isHutangKu, allDebtors: $allDebtors)
+            case .edit(let trxId):
+                EditTransactionSheet(debtorId: currentDebtor.id, transactionId: trxId, allDebtors: $allDebtors)
+            }
         }
     }
     
     private func transactionRow(_ trx: DebtTransaction) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(trx.note)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                
-                // TANGGAL: Disembunyikan khusus untuk "Hutang Awal" karena udah lupa, 
-                // tapi dicatat untuk pembayaran/cicilan atau hutang tambahan.
-                if trx.note != "Hutang Awal" {
+        Button {
+            // Buka halaman EDIT saat transaksi diklik
+            activeSheet = .edit(transactionId: trx.id)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(trx.note)
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    
+                    // Tanggal sekarang ditampilkan untuk SEMUA transaksi
                     Text(AppFormatters.date(trx.date))
                         .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundColor(.gray)
                 }
+                Spacer()
+                
+                Text(trx.isPayment ? "-\(AppFormatters.idr(trx.amount))" : "+\(AppFormatters.idr(trx.amount))")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(trx.isPayment ? .green : .red)
+                
+                Image(systemName: "pencil")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white.opacity(0.3))
+                    .padding(.leading, 6)
             }
-            Spacer()
-            
-            Text(trx.isPayment ? "-\(AppFormatters.idr(trx.amount))" : "+\(AppFormatters.idr(trx.amount))")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(trx.isPayment ? .green : .red)
+            .padding(14)
+            .liquidGlass(cornerRadius: 12)
+            .padding(.horizontal)
         }
-        .padding(14)
-        .liquidGlass(cornerRadius: 12)
-        .padding(.horizontal)
+        .buttonStyle(.plain)
     }
     
     private func deleteDebtor() {
@@ -602,7 +627,6 @@ struct AddDebtorSheet: View {
             transactions.append(DebtTransaction(date: Date(), amount: debtValue, note: "Hutang Awal", isPayment: false))
         }
         
-        // Simpan orang baru dengan Tipe (List A atau B) sesuai tab yang sedang aktif
         let newDebtor = Debtor(name: cleanName, phone: phone, type: currentTab, createdAt: Date(), transactions: transactions)
         debtors.insert(newDebtor, at: 0)
         
@@ -623,6 +647,7 @@ struct AddTransactionSheet: View {
     
     @State private var amount = ""
     @State private var note = ""
+    @State private var date = Date() // Ditambahkan: Bisa milih tanggal
     
     var title: String {
         if isHutangKu {
@@ -638,43 +663,51 @@ struct AddTransactionSheet: View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
-                
-                VStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("NOMINAL (Rp)").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(colorTheme)
-                        TextField("0", text: $amount)
-                            .keyboardType(.numberPad)
-                            .font(.system(size: 24, weight: .heavy, design: .rounded))
-                            .foregroundColor(colorTheme)
-                            .padding(14)
-                            .background(Color.white.opacity(0.08))
-                            .cornerRadius(12)
+                ScrollView {
+                    VStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("NOMINAL (Rp)").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(colorTheme)
+                            TextField("0", text: $amount)
+                                .keyboardType(.numberPad)
+                                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                                .foregroundColor(colorTheme)
+                                .padding(14)
+                                .background(Color.white.opacity(0.08))
+                                .cornerRadius(12)
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("TANGGAL").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
+                            DatePicker("Pilih Tanggal", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .padding(10)
+                                .background(Color.white.opacity(0.08))
+                                .cornerRadius(12)
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
+                            TextField(isPayment ? "Misal: Transfer BCA / Cicilan ke-1" : "Misal: Pulsa Telkomsel 50k", text: $note)
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .padding(14)
+                                .background(Color.white.opacity(0.08))
+                                .cornerRadius(12)
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
                     }
-                    .padding(12)
-                    .liquidGlass(cornerRadius: 16)
-                    
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                        TextField(isPayment ? "Misal: Transfer BCA / Cicilan ke-1" : "Misal: Pulsa Telkomsel 50k", text: $note)
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
-                            .padding(14)
-                            .background(Color.white.opacity(0.08))
-                            .cornerRadius(12)
-                    }
-                    .padding(12)
-                    .liquidGlass(cornerRadius: 16)
-                    
-                    Spacer()
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Batal") { dismiss() }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) { Button("Batal") { dismiss() } }
+                ToolbarItem(placement: .navigationBarTrailing) { 
                     Button("Simpan") { saveTransaction() }
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(colorTheme)
@@ -688,11 +721,153 @@ struct AddTransactionSheet: View {
         let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalNote = cleanNote.isEmpty ? (isPayment ? "Pembayaran/Cicilan" : "Tambah Hutang") : cleanNote
         
-        let newTrx = DebtTransaction(date: Date(), amount: amountValue, note: finalNote, isPayment: isPayment)
+        let newTrx = DebtTransaction(date: date, amount: amountValue, note: finalNote, isPayment: isPayment)
         
         if let index = allDebtors.firstIndex(where: { $0.id == debtorId }) {
             allDebtors[index].transactions.append(newTrx)
             
+            if let encoded = try? JSONEncoder().encode(allDebtors) {
+                UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
+            }
+        }
+        dismiss()
+    }
+}
+
+// MARK: - Form Edit Transaksi (FITUR BARU)
+struct EditTransactionSheet: View {
+    @Environment(\.dismiss) var dismiss
+    var debtorId: UUID
+    var transactionId: UUID
+    @Binding var allDebtors: [Debtor]
+    
+    @State private var amount = ""
+    @State private var note = ""
+    @State private var date = Date()
+    @State private var isPayment = false // false = Hutang nambah, true = Bayar cicilan
+    
+    var colorTheme: Color { isPayment ? .green : .red }
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Edit Jenis Transaksi
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("JENIS TRANSAKSI").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
+                            Picker("Jenis", selection: $isPayment) {
+                                Text("Nambah Hutang").tag(false)
+                                Text("Bayar Cicilan").tag(true)
+                            }
+                            .pickerStyle(SegmentedPickerStyle())
+                            .padding(8)
+                            .background(Color.white.opacity(0.08))
+                            .cornerRadius(12)
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
+                        
+                        // Edit Nominal
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("NOMINAL (Rp)").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(colorTheme)
+                            TextField("0", text: $amount)
+                                .keyboardType(.numberPad)
+                                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                                .foregroundColor(colorTheme)
+                                .padding(14)
+                                .background(Color.white.opacity(0.08))
+                                .cornerRadius(12)
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
+                        
+                        // Edit Tanggal
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("TANGGAL").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
+                            DatePicker("Pilih Tanggal", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .padding(10)
+                                .background(Color.white.opacity(0.08))
+                                .cornerRadius(12)
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
+                        
+                        // Edit Catatan
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
+                            TextField("Catatan transaksi...", text: $note)
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .padding(14)
+                                .background(Color.white.opacity(0.08))
+                                .cornerRadius(12)
+                        }
+                        .padding(12)
+                        .liquidGlass(cornerRadius: 16)
+                        
+                        // Tombol Hapus Transaksi Merah
+                        Button {
+                            deleteTransaction()
+                        } label: {
+                            Text("Hapus Transaksi Ini")
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color.red.opacity(0.15))
+                                .cornerRadius(14)
+                        }
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("Edit Transaksi")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) { Button("Batal") { dismiss() } }
+                ToolbarItem(placement: .navigationBarTrailing) { 
+                    Button("Simpan") { saveTransaction() }
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.cyan)
+                }
+            }
+            .onAppear { loadData() }
+        }
+    }
+    
+    private func loadData() {
+        if let dIndex = allDebtors.firstIndex(where: { $0.id == debtorId }),
+           let trx = allDebtors[dIndex].transactions.first(where: { $0.id == transactionId }) {
+            amount = String(trx.amount)
+            note = trx.note
+            date = trx.date
+            isPayment = trx.isPayment
+        }
+    }
+    
+    private func saveTransaction() {
+        guard let amountValue = Int(amount), amountValue > 0 else { return }
+        
+        if let dIndex = allDebtors.firstIndex(where: { $0.id == debtorId }),
+           let tIndex = allDebtors[dIndex].transactions.firstIndex(where: { $0.id == transactionId }) {
+            
+            allDebtors[dIndex].transactions[tIndex].amount = amountValue
+            allDebtors[dIndex].transactions[tIndex].note = note.isEmpty ? "-" : note
+            allDebtors[dIndex].transactions[tIndex].date = date
+            allDebtors[dIndex].transactions[tIndex].isPayment = isPayment // Bisa ubah tipe hutang ke cicilan
+            
+            if let encoded = try? JSONEncoder().encode(allDebtors) {
+                UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
+            }
+        }
+        dismiss()
+    }
+    
+    private func deleteTransaction() {
+        if let dIndex = allDebtors.firstIndex(where: { $0.id == debtorId }) {
+            allDebtors[dIndex].transactions.removeAll(where: { $0.id == transactionId })
             if let encoded = try? JSONEncoder().encode(allDebtors) {
                 UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
             }
