@@ -55,17 +55,29 @@ func saveAllData(_ debtors: [Debtor]) {
     if let encoded = try? JSONEncoder().encode(debtors) {
         UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
     }
-    // Auto-save langsung ke JSON setiap ada perubahan!
     AutoSaveManager.shared.save(debtors)
 }
 
-// MARK: - Share Sheet Wrapper
-struct ShareSheet: UIViewControllerRepresentable {
-    var activityItems: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+// MARK: - Wrapper File Exporter (FITUR BARU UNTUK SAVE LANGSUNG)
+struct JSONDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+    
+    init(data: Data) {
+        self.data = data
     }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    
+    init(configuration: ReadConfiguration) throws {
+        if let fileData = configuration.file.regularFileContents {
+            self.data = fileData
+        } else {
+            self.data = Data()
+        }
+    }
+    
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        return FileWrapper(regularFileContents: data)
+    }
 }
 
 // MARK: - Model Data
@@ -144,12 +156,15 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var activeTab: DebtType = .hutangKu
     
-    // Fitur Baru
     @AppStorage("hideFinancials") private var hideFinancials: Bool = false
     @State private var showOptionsMenu = false
+    
+    // Properti Impor & Ekspor (File Asli)
     @State private var showFileImporter = false
-    @State private var shareItems: [Any] = []
-    @State private var showShareSheet = false
+    @State private var showFileExporter = false
+    @State private var backupDocument: JSONDocument?
+    @State private var backupFileName = "Backup_iBaalCell.json"
+    
     @State private var alertMessage = ""
     @State private var showAlert = false
     
@@ -261,6 +276,7 @@ struct ContentView: View {
                                 Button {
                                     withAnimation(.easeInOut(duration: 0.2)) {
                                         hideFinancials.toggle()
+                                        showOptionsMenu = false
                                     }
                                 } label: {
                                     HStack(spacing: 10) {
@@ -321,13 +337,20 @@ struct ContentView: View {
             .sheet(isPresented: $showAddDebtor) {
                 AddDebtorSheet(debtors: $debtors, currentTab: activeTab)
             }
-            .sheet(isPresented: $showShareSheet) {
-                if !shareItems.isEmpty {
-                    ShareSheet(activityItems: shareItems)
-                }
-            }
+            // Fitur File Importer (Restore)
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json, .plainText]) { result in
                 handleImportBackup(result: result)
+            }
+            // Fitur Baru: NATIVE FILE EXPORTER (Save to Files)
+            .fileExporter(isPresented: $showFileExporter, document: backupDocument, contentType: .json, defaultFilename: backupFileName) { result in
+                switch result {
+                case .success(let url):
+                    alertMessage = "Sukses! Data berhasil dicadangkan di folder:\n\(url.lastPathComponent)"
+                    showAlert = true
+                case .failure(let error):
+                    alertMessage = "Gagal mencadangkan: \(error.localizedDescription)"
+                    showAlert = true
+                }
             }
             .alert("Informasi", isPresented: $showAlert) {
                 Button("OK", role: .cancel) {}
@@ -447,15 +470,19 @@ struct ContentView: View {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(debtors)
+            
+            // Generate Nama File JSON
             let df = DateFormatter()
-            df.dateFormat = "yyyyMMdd_HHmmss"
-            let fileName = "Backup_iBaalCell_\(df.string(from: Date())).json"
-            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-            try data.write(to: tempURL)
-            shareItems = [tempURL]
-            showShareSheet = true
+            df.dateFormat = "yyyyMMdd_HHmm"
+            backupFileName = "Backup_iBaalCell_\(df.string(from: Date())).json"
+            
+            // Masukkan data ke File Document Exporter
+            backupDocument = JSONDocument(data: data)
+            
+            // Tampilkan menu Save to Files!
+            showFileExporter = true
         } catch {
-            alertMessage = "Gagal mengekspor data: \(error.localizedDescription)"
+            alertMessage = "Gagal menyiapkan data backup."
             showAlert = true
         }
     }
@@ -751,7 +778,7 @@ struct AddDebtorSheet: View {
                 }
                 .padding()
             }
-            .navigationTitle(currentTab == .hutangKu ? "Tambah Daftar (List A)" : "Tambah Daftar (List B)")
+            .navigationTitle(currentTab == .hutangKu ? "Tambah (List A)" : "Tambah (List B)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) { Button("Batal") { dismiss() } }
@@ -829,7 +856,7 @@ struct AddTransactionSheet: View {
                         
                         VStack(alignment: .leading, spacing: 6) {
                             Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                            TextField(isPayment ? "Misal: Transfer BCA / Cicilan ke-1" : "Misal: Pulsa Telkomsel 50k", text: $note)
+                            TextField(isPayment ? "Misal: Transfer BCA" : "Misal: Pulsa Telkomsel", text: $note)
                                 .font(.system(size: 16, weight: .medium, design: .rounded))
                                 .padding(14)
                                 .background(Color.white.opacity(0.08))
