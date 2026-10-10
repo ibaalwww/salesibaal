@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-// MARK: - Format Helper Global
+// MARK: - Format Helper Global (Ditambah Logika UI biar Swift ga pusing)
 struct AppFormatters {
     static func idr(_ num: Int) -> String {
         let formatter = NumberFormatter()
@@ -16,6 +16,37 @@ struct AppFormatters {
         let f = DateFormatter()
         f.dateFormat = "dd MMM yyyy, HH:mm"
         return f.string(from: d)
+    }
+    
+    // Helper Teks Status Hutang
+    static func statusText(tab: DebtType, debt: Int) -> String {
+        if tab == .hutangKu {
+            return debt > 0 ? "⚠️ Segera lunasi hutangmu!" : "✅ Bebas hutang"
+        } else {
+            return debt > 0 ? "⚠️ Segera tagih agar kas lancar" : "✅ Semua hutang pelanggan lunas"
+        }
+    }
+    
+    // Helper Warna Total
+    static func totalColor(isHidden: Bool, debt: Int, tab: DebtType) -> Color {
+        if isHidden { return .gray }
+        if debt <= 0 { return .green }
+        return tab == .hutangKu ? .red : .orange
+    }
+    
+    // Helper Format Teks Riwayat Transaksi
+    static func trxAmountText(isHidden: Bool, isPayment: Bool, amount: Int) -> String {
+        if isHidden {
+            return isPayment ? "- Rp •••••" : "+ Rp •••••"
+        } else {
+            return isPayment ? "-\(idr(amount))" : "+\(idr(amount))"
+        }
+    }
+    
+    // Helper Warna Riwayat Transaksi
+    static func trxColor(isHidden: Bool, isPayment: Bool) -> Color {
+        if isHidden { return .gray }
+        return isPayment ? .green : .red
     }
 }
 
@@ -58,12 +89,12 @@ func saveAllData(_ debtors: [Debtor]) {
     AutoSaveManager.shared.save(debtors)
 }
 
-// MARK: - Wrapper File Exporter (FITUR BARU UNTUK SAVE LANGSUNG)
+// MARK: - Wrapper File Exporter
 struct JSONDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
     var data: Data
     
-    init(data: Data) {
+    init(data: Data = Data()) {
         self.data = data
     }
     
@@ -159,10 +190,9 @@ struct ContentView: View {
     @AppStorage("hideFinancials") private var hideFinancials: Bool = false
     @State private var showOptionsMenu = false
     
-    // Properti Impor & Ekspor (File Asli)
     @State private var showFileImporter = false
     @State private var showFileExporter = false
-    @State private var backupDocument: JSONDocument?
+    @State private var backupDocument = JSONDocument() // FIXED: Non-optional Document
     @State private var backupFileName = "Backup_iBaalCell.json"
     
     @State private var alertMessage = ""
@@ -212,9 +242,9 @@ struct ContentView: View {
                         
                         Text(hideFinancials ? "Rp •••••••" : AppFormatters.idr(totalActiveDebt))
                             .font(.system(size: 28, weight: .heavy, design: .rounded))
-                            .foregroundColor(activeTab == .hutangKu ? .red : .cyan)
+                            .foregroundColor(AppFormatters.totalColor(isHidden: hideFinancials, debt: totalActiveDebt, tab: activeTab))
                         
-                        Text(activeTab == .hutangKu ? (totalActiveDebt > 0 ? "⚠️ Segera lunasi hutangmu!" : "✅ Bebas hutang") : (totalActiveDebt > 0 ? "⚠️ Segera tagih agar kas lancar" : "✅ Semua hutang pelanggan lunas"))
+                        Text(AppFormatters.statusText(tab: activeTab, debt: totalActiveDebt))
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .foregroundColor(totalActiveDebt > 0 ? .orange.opacity(0.8) : .green)
                     }
@@ -259,7 +289,7 @@ struct ContentView: View {
                     }
                 }
                 
-                // Menu Dropdown 3 Titik
+                // Menu Dropdown
                 if showOptionsMenu {
                     Color.black.opacity(0.45)
                         .ignoresSafeArea()
@@ -272,7 +302,6 @@ struct ContentView: View {
                     VStack {
                         HStack {
                             VStack(alignment: .leading, spacing: 6) {
-                                
                                 Button {
                                     withAnimation(.easeInOut(duration: 0.2)) {
                                         hideFinancials.toggle()
@@ -337,11 +366,9 @@ struct ContentView: View {
             .sheet(isPresented: $showAddDebtor) {
                 AddDebtorSheet(debtors: $debtors, currentTab: activeTab)
             }
-            // Fitur File Importer (Restore)
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json, .plainText]) { result in
                 handleImportBackup(result: result)
             }
-            // Fitur Baru: NATIVE FILE EXPORTER (Save to Files)
             .fileExporter(isPresented: $showFileExporter, document: backupDocument, contentType: .json, defaultFilename: backupFileName) { result in
                 switch result {
                 case .success(let url):
@@ -443,7 +470,7 @@ struct ContentView: View {
                 
                 Text(hideFinancials ? "Rp •••••" : AppFormatters.idr(debtor.totalHutang))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(hideFinancials ? .gray : (debtor.totalHutang > 0 ? (debtor.type == .hutangKu ? .red : .orange) : .green))
+                    .foregroundColor(AppFormatters.totalColor(isHidden: hideFinancials, debt: debtor.totalHutang, tab: debtor.type))
             }
             
             Image(systemName: "chevron.right")
@@ -471,15 +498,11 @@ struct ContentView: View {
             encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(debtors)
             
-            // Generate Nama File JSON
             let df = DateFormatter()
             df.dateFormat = "yyyyMMdd_HHmm"
             backupFileName = "Backup_iBaalCell_\(df.string(from: Date())).json"
-            
-            // Masukkan data ke File Document Exporter
             backupDocument = JSONDocument(data: data)
             
-            // Tampilkan menu Save to Files!
             showFileExporter = true
         } catch {
             alertMessage = "Gagal menyiapkan data backup."
@@ -575,7 +598,7 @@ struct DebtorDetailView: View {
                         
                         Text(hideFinancials ? "Rp •••••••" : AppFormatters.idr(currentDebtor.totalHutang))
                             .font(.system(size: 36, weight: .heavy, design: .rounded))
-                            .foregroundColor(hideFinancials ? .gray : (currentDebtor.totalHutang > 0 ? (isHutangKu ? .red : .orange) : .green))
+                            .foregroundColor(AppFormatters.totalColor(isHidden: hideFinancials, debt: currentDebtor.totalHutang, tab: currentDebtor.type))
                         
                         HStack(spacing: 20) {
                             VStack(spacing: 4) {
@@ -700,9 +723,9 @@ struct DebtorDetailView: View {
                 }
                 Spacer()
                 
-                Text(hideFinancials ? (trx.isPayment ? "- Rp •••••" : "+ Rp •••••") : (trx.isPayment ? "-\(AppFormatters.idr(trx.amount))" : "+\(AppFormatters.idr(trx.amount))"))
+                Text(AppFormatters.trxAmountText(isHidden: hideFinancials, isPayment: trx.isPayment, amount: trx.amount))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(hideFinancials ? .gray : (trx.isPayment ? .green : .red))
+                    .foregroundColor(AppFormatters.trxColor(isHidden: hideFinancials, isPayment: trx.isPayment))
                 
                 Image(systemName: "pencil")
                     .font(.system(size: 14, weight: .bold))
