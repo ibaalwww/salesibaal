@@ -20,12 +20,17 @@ struct AppFormatters {
 }
 
 // MARK: - Model Data
+enum DebtType: String, Codable, Equatable {
+    case hutangKu = "Hutangku"    // List A: Aku yang ngutang ke orang
+    case piutang = "Piutang"      // List B: Orang yang ngutang ke aku
+}
+
 struct DebtTransaction: Identifiable, Codable, Hashable {
     var id = UUID()
     var date: Date
     var amount: Int
     var note: String
-    var isPayment: Bool // true = bayar hutang (-), false = tambah hutang (+)
+    var isPayment: Bool // true = bayar/ngurangin, false = nambah
     
     var nominalValue: Int {
         return isPayment ? -amount : amount
@@ -36,10 +41,10 @@ struct Debtor: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var phone: String
+    var type: DebtType // Penanda masuk List A atau List B
     var createdAt: Date
     var transactions: [DebtTransaction]
     
-    // Total akan menjumlahkan atau mengurangkan otomatis!
     var totalHutang: Int {
         transactions.reduce(0) { $0 + $1.nominalValue }
     }
@@ -105,15 +110,19 @@ struct ContentView: View {
     @State private var debtors: [Debtor] = []
     @State private var showAddDebtor = false
     @State private var searchText = ""
+    @State private var activeTab: DebtType = .piutang // Default List B
     
-    // Menghitung total semua hutang orang ke kamu
-    var totalUangDiLuar: Int {
-        debtors.reduce(0) { $0 + $1.totalHutang }
+    var activeDebtors: [Debtor] {
+        debtors.filter { $0.type == activeTab }
     }
     
     var filteredDebtors: [Debtor] {
-        if searchText.isEmpty { return debtors }
-        return debtors.filter { $0.name.lowercased().contains(searchText.lowercased()) }
+        if searchText.isEmpty { return activeDebtors }
+        return activeDebtors.filter { $0.name.lowercased().contains(searchText.lowercased()) }
+    }
+    
+    var totalActiveDebt: Int {
+        activeDebtors.reduce(0) { $0 + $1.totalHutang }
     }
     
     var body: some View {
@@ -122,25 +131,39 @@ struct ContentView: View {
                 Color(red: 0.05, green: 0.05, blue: 0.08).ignoresSafeArea()
                 
                 // Dekorasi Background
-                Circle().fill(Color.cyan.opacity(0.25)).frame(width: 300, height: 300).blur(radius: 100).offset(x: -100, y: -300)
-                Circle().fill(Color.purple.opacity(0.2)).frame(width: 300, height: 300).blur(radius: 100).offset(x: 150, y: 300)
+                Circle()
+                    .fill(activeTab == .piutang ? Color.cyan.opacity(0.25) : Color.red.opacity(0.25))
+                    .frame(width: 300, height: 300).blur(radius: 100).offset(x: -100, y: -300)
+                Circle()
+                    .fill(Color.purple.opacity(0.2))
+                    .frame(width: 300, height: 300).blur(radius: 100).offset(x: 150, y: 300)
                 
                 VStack(spacing: 12) {
                     customTopBar
                     
+                    // Switch Tab List A & List B
+                    HStack(spacing: 0) {
+                        tabButton(title: "List A (Hutangku)", type: .hutangKu)
+                        tabButton(title: "List B (Piutang)", type: .piutang)
+                    }
+                    .padding(4)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    
                     // Card Dasbor Total
                     VStack(spacing: 6) {
-                        Text("TOTAL UANG DI LUAR (PIUTANG)")
+                        Text(activeTab == .hutangKu ? "TOTAL HUTANG SAYA" : "TOTAL UANG DI LUAR (PIUTANG)")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .foregroundColor(.gray)
                         
-                        Text(AppFormatters.idr(totalUangDiLuar))
+                        Text(AppFormatters.idr(totalActiveDebt))
                             .font(.system(size: 28, weight: .heavy, design: .rounded))
-                            .foregroundColor(totalUangDiLuar > 0 ? .orange : .green)
+                            .foregroundColor(activeTab == .hutangKu ? .red : .cyan)
                         
-                        Text(totalUangDiLuar > 0 ? "⚠️ Segera tagih agar kas lancar" : "✅ Semua hutang pelanggan lunas")
+                        Text(activeTab == .hutangKu ? (totalActiveDebt > 0 ? "⚠️ Segera lunasi hutangmu!" : "✅ Bebas hutang") : (totalActiveDebt > 0 ? "⚠️ Segera tagih agar kas lancar" : "✅ Semua hutang pelanggan lunas"))
                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundColor(totalUangDiLuar > 0 ? .orange.opacity(0.8) : .green)
+                            .foregroundColor(totalActiveDebt > 0 ? .orange.opacity(0.8) : .green)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(16)
@@ -150,7 +173,7 @@ struct ContentView: View {
                     // Search Bar
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundColor(.gray)
-                        TextField("Cari nama pelanggan...", text: $searchText)
+                        TextField("Cari nama...", text: $searchText)
                             .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundColor(.white)
                     }
@@ -159,15 +182,15 @@ struct ContentView: View {
                     .cornerRadius(12)
                     .padding(.horizontal)
                     
-                    // List Orang yang Hutang
+                    // List Orang
                     ScrollView {
                         VStack(spacing: 12) {
                             if filteredDebtors.isEmpty {
                                 VStack(spacing: 10) {
-                                    Image(systemName: "person.3.fill")
+                                    Image(systemName: activeTab == .hutangKu ? "wallet.pass.fill" : "person.3.fill")
                                         .font(.system(size: 40))
                                         .foregroundColor(.gray.opacity(0.5))
-                                    Text("Belum ada data pelanggan.")
+                                    Text("Belum ada data di daftar ini.")
                                         .font(.system(size: 14, weight: .medium, design: .rounded))
                                         .foregroundColor(.gray)
                                 }
@@ -187,7 +210,7 @@ struct ContentView: View {
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showAddDebtor) {
-                AddDebtorSheet(debtors: $debtors)
+                AddDebtorSheet(debtors: $debtors, currentTab: activeTab)
             }
             .onAppear { loadData() }
         }
@@ -201,10 +224,10 @@ struct ContentView: View {
                 Button {
                     showAddDebtor = true
                 } label: {
-                    Image(systemName: "person.crop.circle.badge.plus")
-                        .font(.system(size: 22, weight: .semibold))
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.black)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 38, height: 38)
                         .background(Color.cyan)
                         .clipShape(Circle())
                 }
@@ -216,6 +239,24 @@ struct ContentView: View {
         .padding(.horizontal)
         .padding(.top, 10)
         .padding(.bottom, 5)
+    }
+    
+    private func tabButton(title: String, type: DebtType) -> some View {
+        let isSelected = activeTab == type
+        return Button {
+            withAnimation(.spring()) {
+                activeTab = type
+                searchText = ""
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(isSelected ? .white : .gray)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(isSelected ? Color.white.opacity(0.15) : Color.clear)
+                .cornerRadius(10)
+        }
     }
     
     private func debtorCard(_ debtor: Debtor) -> some View {
@@ -237,13 +278,13 @@ struct ContentView: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 6) {
-                Text("Total Hutang:")
+                Text(debtor.type == .hutangKu ? "Kewajiban:" : "Total Hutang:")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.gray)
                 
                 Text(AppFormatters.idr(debtor.totalHutang))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(debtor.totalHutang > 0 ? .orange : .green)
+                    .foregroundColor(debtor.totalHutang > 0 ? (debtor.type == .hutangKu ? .red : .orange) : .green)
             }
             
             Image(systemName: "chevron.right")
@@ -271,10 +312,14 @@ struct DebtorDetailView: View {
     @Binding var allDebtors: [Debtor]
     
     @State private var showTransactionSheet = false
-    @State private var isPaymentMode = false // false = ngutang lagi, true = bayar cicilan
+    @State private var isPaymentMode = false
     
     var currentDebtor: Debtor {
         allDebtors.first(where: { $0.id == debtor.id }) ?? debtor
+    }
+    
+    var isHutangKu: Bool {
+        currentDebtor.type == .hutangKu
     }
     
     var body: some View {
@@ -314,16 +359,16 @@ struct DebtorDetailView: View {
                         .foregroundColor(.gray)
                     
                     VStack(spacing: 4) {
-                        Text("SISA HUTANG SAAT INI")
+                        Text(isHutangKu ? "SISA HUTANGKU SAAT INI" : "SISA HUTANG DIA SAAT INI")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundColor(.gray)
                         Text(AppFormatters.idr(currentDebtor.totalHutang))
                             .font(.system(size: 32, weight: .heavy, design: .rounded))
-                            .foregroundColor(currentDebtor.totalHutang > 0 ? .orange : .green)
+                            .foregroundColor(currentDebtor.totalHutang > 0 ? (isHutangKu ? .red : .orange) : .green)
                     }
                     .padding(.top, 10)
                     
-                    // Tombol Aksi (Tambah Hutang / Bayar)
+                    // Tombol Aksi (Tergantung List A atau List B)
                     HStack(spacing: 12) {
                         Button {
                             isPaymentMode = false
@@ -331,7 +376,7 @@ struct DebtorDetailView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "minus.square.fill")
-                                Text("Ngutang Lagi")
+                                Text(isHutangKu ? "Ngutang Lagi" : "Beri Hutang")
                             }
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)
@@ -347,7 +392,7 @@ struct DebtorDetailView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "plus.square.fill")
-                                Text("Bayar/Cicil")
+                                Text(isHutangKu ? "Bayar Hutang" : "Terima Bayaran")
                             }
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)
@@ -364,7 +409,7 @@ struct DebtorDetailView: View {
                 
                 Divider().background(Color.white.opacity(0.1)).padding(.vertical, 10)
                 
-                // Daftar Riwayat Transaksi
+                // Daftar Riwayat
                 VStack(alignment: .leading) {
                     Text("RIWAYAT TRANSAKSI")
                         .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -379,7 +424,6 @@ struct DebtorDetailView: View {
                                     .foregroundColor(.gray)
                                     .padding(.top, 30)
                             } else {
-                                // Tampilkan dari yang paling baru
                                 ForEach(currentDebtor.transactions.sorted(by: { $0.date > $1.date })) { trx in
                                     transactionRow(trx)
                                 }
@@ -393,7 +437,7 @@ struct DebtorDetailView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $showTransactionSheet) {
-            AddTransactionSheet(debtorId: currentDebtor.id, isPayment: isPaymentMode, allDebtors: $allDebtors)
+            AddTransactionSheet(debtorId: currentDebtor.id, isPayment: isPaymentMode, isHutangKu: isHutangKu, allDebtors: $allDebtors)
         }
     }
     
@@ -434,6 +478,7 @@ struct DebtorDetailView: View {
 struct AddDebtorSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var debtors: [Debtor]
+    var currentTab: DebtType
     
     @State private var name = ""
     @State private var phone = ""
@@ -446,8 +491,8 @@ struct AddDebtorSheet: View {
                 
                 VStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("NAMA PELANGGAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                        TextField("Misal: Budi", text: $name)
+                        Text(currentTab == .hutangKu ? "NAMA ORANG/TOKO" : "NAMA PELANGGAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
+                        TextField(currentTab == .hutangKu ? "Misal: Distributor Pulsa" : "Misal: Budi", text: $name)
                             .font(.system(size: 16, weight: .medium, design: .rounded))
                             .padding(12)
                             .background(Color.white.opacity(0.08))
@@ -485,7 +530,7 @@ struct AddDebtorSheet: View {
                 }
                 .padding()
             }
-            .navigationTitle("Tambah Pelanggan")
+            .navigationTitle(currentTab == .hutangKu ? "Tambah Daftar (List A)" : "Tambah Daftar (List B)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -509,7 +554,8 @@ struct AddDebtorSheet: View {
             transactions.append(DebtTransaction(date: Date(), amount: debtValue, note: "Hutang Awal", isPayment: false))
         }
         
-        let newDebtor = Debtor(name: cleanName, phone: phone, createdAt: Date(), transactions: transactions)
+        // Simpan orang baru dengan Tipe (List A atau B) sesuai tab yang sedang aktif
+        let newDebtor = Debtor(name: cleanName, phone: phone, type: currentTab, createdAt: Date(), transactions: transactions)
         debtors.insert(newDebtor, at: 0)
         
         if let encoded = try? JSONEncoder().encode(debtors) {
@@ -524,12 +570,20 @@ struct AddTransactionSheet: View {
     @Environment(\.dismiss) var dismiss
     var debtorId: UUID
     var isPayment: Bool
+    var isHutangKu: Bool
     @Binding var allDebtors: [Debtor]
     
     @State private var amount = ""
     @State private var note = ""
     
-    var title: String { isPayment ? "Terima Pembayaran" : "Tambah Hutang" }
+    var title: String {
+        if isHutangKu {
+            return isPayment ? "Bayar Hutang" : "Ngutang Lagi"
+        } else {
+            return isPayment ? "Terima Pembayaran" : "Beri Hutang"
+        }
+    }
+    
     var colorTheme: Color { isPayment ? .green : .red }
     
     var body: some View {
@@ -553,7 +607,7 @@ struct AddTransactionSheet: View {
                     
                     VStack(alignment: .leading, spacing: 6) {
                         Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                        TextField(isPayment ? "Misal: Cicilan ke-1" : "Misal: Pulsa Telkomsel 50k", text: $note)
+                        TextField(isPayment ? "Misal: Transfer M-Banking" : "Misal: Pulsa Telkomsel 50k", text: $note)
                             .font(.system(size: 16, weight: .medium, design: .rounded))
                             .padding(14)
                             .background(Color.white.opacity(0.08))
