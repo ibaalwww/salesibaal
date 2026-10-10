@@ -41,12 +41,24 @@ struct Debtor: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var phone: String
-    var type: DebtType // Penanda masuk List A atau List B
+    var type: DebtType
     var createdAt: Date
     var transactions: [DebtTransaction]
     
+    // Sisa Hutang Saat Ini
     var totalHutang: Int {
         transactions.reduce(0) { $0 + $1.nominalValue }
+    }
+    
+    // --- FITUR BARU: Total Jumlah Asli ---
+    // Total Pinjaman (Jumlah asli sebelum dicicil)
+    var totalPinjaman: Int {
+        transactions.filter { !$0.isPayment }.reduce(0) { $0 + $1.amount }
+    }
+    
+    // Total Pembayaran (Jumlah yang udah disetor)
+    var totalDibayar: Int {
+        transactions.filter { $0.isPayment }.reduce(0) { $0 + $1.amount }
     }
 }
 
@@ -110,7 +122,7 @@ struct ContentView: View {
     @State private var debtors: [Debtor] = []
     @State private var showAddDebtor = false
     @State private var searchText = ""
-    @State private var activeTab: DebtType = .piutang // Default List B
+    @State private var activeTab: DebtType = .hutangKu // Default ke List A (Hutangku)
     
     var activeDebtors: [Debtor] {
         debtors.filter { $0.type == activeTab }
@@ -278,7 +290,7 @@ struct ContentView: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 6) {
-                Text(debtor.type == .hutangKu ? "Kewajiban:" : "Total Hutang:")
+                Text(debtor.type == .hutangKu ? "Sisa Kewajiban:" : "Sisa Hutang:")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.gray)
                 
@@ -362,9 +374,41 @@ struct DebtorDetailView: View {
                         Text(isHutangKu ? "SISA HUTANGKU SAAT INI" : "SISA HUTANG DIA SAAT INI")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundColor(.gray)
+                        
                         Text(AppFormatters.idr(currentDebtor.totalHutang))
-                            .font(.system(size: 32, weight: .heavy, design: .rounded))
+                            .font(.system(size: 36, weight: .heavy, design: .rounded))
                             .foregroundColor(currentDebtor.totalHutang > 0 ? (isHutangKu ? .red : .orange) : .green)
+                        
+                        // --- FITUR BARU: RINCIAN JUMLAH ASLI ---
+                        HStack(spacing: 20) {
+                            VStack(spacing: 4) {
+                                Text(isHutangKu ? "TOTAL PINJAMANKU" : "TOTAL PINJAMAN DIA")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundColor(.gray)
+                                Text(AppFormatters.idr(currentDebtor.totalPinjaman))
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                            }
+                            
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 1, height: 24)
+                            
+                            VStack(spacing: 4) {
+                                Text("SUDAH DIBAYAR")
+                                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                                    .foregroundColor(.gray)
+                                Text(AppFormatters.idr(currentDebtor.totalDibayar))
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 16)
+                        .background(Color.white.opacity(0.05))
+                        .cornerRadius(12)
+                        .padding(.top, 8)
+                        // ---------------------------------------
                     }
                     .padding(.top, 10)
                     
@@ -607,7 +651,7 @@ struct AddTransactionSheet: View {
                     
                     VStack(alignment: .leading, spacing: 6) {
                         Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
-                        TextField(isPayment ? "Misal: Transfer M-Banking" : "Misal: Pulsa Telkomsel 50k", text: $note)
+                        TextField(isPayment ? "Misal: Transfer BCA" : "Misal: Ngambil rokok / saldo", text: $note)
                             .font(.system(size: 16, weight: .medium, design: .rounded))
                             .padding(14)
                             .background(Color.white.opacity(0.08))
