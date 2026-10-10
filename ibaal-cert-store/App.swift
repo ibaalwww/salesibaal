@@ -19,6 +19,55 @@ struct AppFormatters {
     }
 }
 
+// MARK: - Manajer Auto-Save & Dokumen (JSON)
+class AutoSaveManager {
+    static let shared = AutoSaveManager()
+    
+    private var autoBackupURL: URL {
+        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        return paths[0].appendingPathComponent("iBaalCell_AutoBackup.json")
+    }
+    
+    func save(_ debtors: [Debtor]) {
+        DispatchQueue.global(qos: .background).async {
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = .prettyPrinted
+                let data = try encoder.encode(debtors)
+                try data.write(to: self.autoBackupURL, options: .atomic)
+            } catch {}
+        }
+    }
+    
+    func loadAutoSave() -> [Debtor]? {
+        guard FileManager.default.fileExists(atPath: autoBackupURL.path) else { return nil }
+        do {
+            let data = try Data(contentsOf: autoBackupURL)
+            return try JSONDecoder().decode([Debtor].self, from: data)
+        } catch {
+            return nil
+        }
+    }
+}
+
+// MARK: - Helper Simpan Cepat
+func saveAllData(_ debtors: [Debtor]) {
+    if let encoded = try? JSONEncoder().encode(debtors) {
+        UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
+    }
+    // Auto-save langsung ke JSON setiap ada perubahan!
+    AutoSaveManager.shared.save(debtors)
+}
+
+// MARK: - Share Sheet Wrapper
+struct ShareSheet: UIViewControllerRepresentable {
+    var activityItems: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
 // MARK: - Model Data
 enum DebtType: String, Codable, Equatable {
     case hutangKu = "Hutangku"    // List A: Aku yang ngutang ke orang
@@ -30,7 +79,7 @@ struct DebtTransaction: Identifiable, Codable, Hashable {
     var date: Date
     var amount: Int
     var note: String
-    var isPayment: Bool // true = bayar/ngurangin, false = nambah
+    var isPayment: Bool
     
     var nominalValue: Int {
         return isPayment ? -amount : amount
@@ -45,61 +94,33 @@ struct Debtor: Identifiable, Codable, Hashable {
     var createdAt: Date
     var transactions: [DebtTransaction]
     
-    // Sisa Hutang Saat Ini (Total Keseluruhan - Total Cicilan)
     var totalHutang: Int {
         transactions.reduce(0) { $0 + $1.nominalValue }
     }
-    
-    // Total Pinjaman Keseluruhan (Jumlah asli sebelum dicicil, TIDAK AKAN HILANG)
     var totalPinjaman: Int {
         transactions.filter { !$0.isPayment }.reduce(0) { $0 + $1.amount }
     }
-    
-    // Total Pembayaran (Jumlah yang udah dicicil/disetor)
     var totalDibayar: Int {
         transactions.filter { $0.isPayment }.reduce(0) { $0 + $1.amount }
     }
 }
 
-// MARK: - Modifier Liquid Glass Ala iBaal
+// MARK: - Modifier Liquid Glass
 extension View {
     func liquidGlass(cornerRadius: CGFloat = 16) -> some View {
         self
             .background(
                 ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(Color.black.opacity(0.45))
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.ultraThinMaterial)
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.black.opacity(0.45))
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.white.opacity(0.15),
-                                    Color.white.opacity(0.02),
-                                    Color.clear
-                                ]),
-                                startPoint: .top,
-                                endPoint: .center
-                            )
-                        )
+                        .fill(LinearGradient(gradient: Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.02), Color.clear]), startPoint: .top, endPoint: .center))
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            gradient: Gradient(stops: [
-                                Gradient.Stop(color: Color.white.opacity(0.4), location: 0.0),
-                                Gradient.Stop(color: Color.white.opacity(0.1), location: 0.45),
-                                Gradient.Stop(color: Color.cyan.opacity(0.3), location: 1.0)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.0
-                    )
+                    .stroke(LinearGradient(gradient: Gradient(stops: [Gradient.Stop(color: Color.white.opacity(0.4), location: 0.0), Gradient.Stop(color: Color.white.opacity(0.1), location: 0.45), Gradient.Stop(color: Color.cyan.opacity(0.3), location: 1.0)]), startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.0)
             )
             .shadow(color: Color.black.opacity(0.5), radius: 10, x: 0, y: 5)
     }
@@ -121,7 +142,16 @@ struct ContentView: View {
     @State private var debtors: [Debtor] = []
     @State private var showAddDebtor = false
     @State private var searchText = ""
-    @State private var activeTab: DebtType = .hutangKu // Default ke List A (Hutangku)
+    @State private var activeTab: DebtType = .hutangKu
+    
+    // Fitur Baru
+    @AppStorage("hideFinancials") private var hideFinancials: Bool = false
+    @State private var showOptionsMenu = false
+    @State private var showFileImporter = false
+    @State private var shareItems: [Any] = []
+    @State private var showShareSheet = false
+    @State private var alertMessage = ""
+    @State private var showAlert = false
     
     var activeDebtors: [Debtor] {
         debtors.filter { $0.type == activeTab }
@@ -141,7 +171,6 @@ struct ContentView: View {
             ZStack {
                 Color(red: 0.05, green: 0.05, blue: 0.08).ignoresSafeArea()
                 
-                // Dekorasi Background
                 Circle()
                     .fill(activeTab == .piutang ? Color.cyan.opacity(0.25) : Color.red.opacity(0.25))
                     .frame(width: 300, height: 300).blur(radius: 100).offset(x: -100, y: -300)
@@ -152,7 +181,6 @@ struct ContentView: View {
                 VStack(spacing: 12) {
                     customTopBar
                     
-                    // Switch Tab List A & List B
                     HStack(spacing: 0) {
                         tabButton(title: "List A (Hutangku)", type: .hutangKu)
                         tabButton(title: "List B (Piutang)", type: .piutang)
@@ -162,13 +190,12 @@ struct ContentView: View {
                     .cornerRadius(12)
                     .padding(.horizontal)
                     
-                    // Card Dasbor Total
                     VStack(spacing: 6) {
                         Text(activeTab == .hutangKu ? "TOTAL SISA HUTANG SAYA" : "TOTAL SISA PIUTANG (UANG DI LUAR)")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
                             .foregroundColor(.gray)
                         
-                        Text(AppFormatters.idr(totalActiveDebt))
+                        Text(hideFinancials ? "Rp •••••••" : AppFormatters.idr(totalActiveDebt))
                             .font(.system(size: 28, weight: .heavy, design: .rounded))
                             .foregroundColor(activeTab == .hutangKu ? .red : .cyan)
                         
@@ -181,7 +208,6 @@ struct ContentView: View {
                     .liquidGlass(cornerRadius: 18)
                     .padding(.horizontal)
                     
-                    // Search Bar
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundColor(.gray)
                         TextField("Cari nama...", text: $searchText)
@@ -193,7 +219,6 @@ struct ContentView: View {
                     .cornerRadius(12)
                     .padding(.horizontal)
                     
-                    // List Orang
                     ScrollView {
                         VStack(spacing: 12) {
                             if filteredDebtors.isEmpty {
@@ -208,7 +233,7 @@ struct ContentView: View {
                                 .padding(.top, 50)
                             } else {
                                 ForEach(filteredDebtors) { debtor in
-                                    NavigationLink(destination: DebtorDetailView(debtor: debtor, allDebtors: $debtors)) {
+                                    NavigationLink(destination: DebtorDetailView(debtor: debtor, allDebtors: $debtors, hideFinancials: $hideFinancials)) {
                                         debtorCard(debtor)
                                     }
                                 }
@@ -218,10 +243,96 @@ struct ContentView: View {
                         .padding(.bottom, 40)
                     }
                 }
+                
+                // Menu Dropdown 3 Titik
+                if showOptionsMenu {
+                    Color.black.opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                                showOptionsMenu = false
+                            }
+                        }
+
+                    VStack {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 6) {
+                                
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        hideFinancials.toggle()
+                                    }
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: hideFinancials ? "eye.slash.fill" : "eye.fill")
+                                            .foregroundColor(.cyan)
+                                        Text(hideFinancials ? "Tampilkan Saldo" : "Sembunyikan Saldo")
+                                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                }
+
+                                Divider().background(Color.white.opacity(0.15))
+
+                                Button {
+                                    withAnimation { showOptionsMenu = false }
+                                    exportBackup()
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "square.and.arrow.up").foregroundColor(.yellow)
+                                        Text("Cadangkan Data (Backup)")
+                                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                }
+
+                                Button {
+                                    withAnimation { showOptionsMenu = false }
+                                    showFileImporter = true
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "square.and.arrow.down").foregroundColor(.purple)
+                                        Text("Pulihkan Data (Restore)")
+                                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                }
+                            }
+                            .padding(8)
+                            .frame(width: 260)
+                            .liquidGlass(cornerRadius: 16)
+                            .padding(.leading, 14)
+                            .padding(.top, 50)
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                    .transition(.opacity)
+                    .zIndex(99)
+                }
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showAddDebtor) {
                 AddDebtorSheet(debtors: $debtors, currentTab: activeTab)
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if !shareItems.isEmpty {
+                    ShareSheet(activityItems: shareItems)
+                }
+            }
+            .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.json, .plainText]) { result in
+                handleImportBackup(result: result)
+            }
+            .alert("Informasi", isPresented: $showAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(alertMessage)
             }
             .onAppear { loadData() }
         }
@@ -231,7 +342,21 @@ struct ContentView: View {
     private var customTopBar: some View {
         ZStack {
             HStack {
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        showOptionsMenu.toggle()
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                
                 Spacer()
+                
                 Button {
                     showAddDebtor = true
                 } label: {
@@ -293,9 +418,9 @@ struct ContentView: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.gray)
                 
-                Text(AppFormatters.idr(debtor.totalHutang))
+                Text(hideFinancials ? "Rp •••••" : AppFormatters.idr(debtor.totalHutang))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(debtor.totalHutang > 0 ? (debtor.type == .hutangKu ? .red : .orange) : .green)
+                    .foregroundColor(hideFinancials ? .gray : (debtor.totalHutang > 0 ? (debtor.type == .hutangKu ? .red : .orange) : .green))
             }
             
             Image(systemName: "chevron.right")
@@ -312,15 +437,51 @@ struct ContentView: View {
         if let data = UserDefaults.standard.data(forKey: "ibaal_cell_debtors"),
            let decoded = try? JSONDecoder().decode([Debtor].self, from: data) {
             debtors = decoded
+        } else if let autoSaved = AutoSaveManager.shared.loadAutoSave(), !autoSaved.isEmpty {
+            debtors = autoSaved
+        }
+    }
+    
+    private func exportBackup() {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            let data = try encoder.encode(debtors)
+            let df = DateFormatter()
+            df.dateFormat = "yyyyMMdd_HHmmss"
+            let fileName = "Backup_iBaalCell_\(df.string(from: Date())).json"
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+            try data.write(to: tempURL)
+            shareItems = [tempURL]
+            showShareSheet = true
+        } catch {
+            alertMessage = "Gagal mengekspor data: \(error.localizedDescription)"
+            showAlert = true
+        }
+    }
+    
+    private func handleImportBackup(result: Result<URL, Error>) {
+        do {
+            let fileURL = try result.get()
+            let canAccess = fileURL.startAccessingSecurityScopedResource()
+            defer { if canAccess { fileURL.stopAccessingSecurityScopedResource() } }
+            let data = try Data(contentsOf: fileURL)
+            let imported = try JSONDecoder().decode([Debtor].self, from: data)
+            debtors = imported
+            saveAllData(debtors)
+            alertMessage = "Sukses memulihkan \(imported.count) data pelanggan!"
+            showAlert = true
+        } catch {
+            alertMessage = "Gagal memulihkan berkas JSON."
+            showAlert = true
         }
     }
 }
 
-// MARK: - Helper Tipe Sheet (Solusi Anti Bug Nyangkut)
+// MARK: - Tampilan Detail (Profil Pelanggan & Riwayat)
 enum DetailSheetType: Identifiable {
     case add(isPayment: Bool)
     case edit(transactionId: UUID)
-    
     var id: String {
         switch self {
         case .add(let p): return "add_\(p)"
@@ -329,11 +490,11 @@ enum DetailSheetType: Identifiable {
     }
 }
 
-// MARK: - Tampilan Detail (Profil Pelanggan & Riwayat)
 struct DebtorDetailView: View {
     @Environment(\.presentationMode) var presentationMode
     var debtor: Debtor
     @Binding var allDebtors: [Debtor]
+    @Binding var hideFinancials: Bool
     
     @State private var activeSheet: DetailSheetType? = nil
     
@@ -350,7 +511,6 @@ struct DebtorDetailView: View {
             Color(red: 0.05, green: 0.05, blue: 0.08).ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header Profil
                 VStack(spacing: 8) {
                     HStack {
                         Button { presentationMode.wrappedValue.dismiss() } label: {
@@ -386,19 +546,18 @@ struct DebtorDetailView: View {
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundColor(.gray)
                         
-                        Text(AppFormatters.idr(currentDebtor.totalHutang))
+                        Text(hideFinancials ? "Rp •••••••" : AppFormatters.idr(currentDebtor.totalHutang))
                             .font(.system(size: 36, weight: .heavy, design: .rounded))
-                            .foregroundColor(currentDebtor.totalHutang > 0 ? (isHutangKu ? .red : .orange) : .green)
+                            .foregroundColor(hideFinancials ? .gray : (currentDebtor.totalHutang > 0 ? (isHutangKu ? .red : .orange) : .green))
                         
-                        // RINCIAN HUTANG ASLI VS CICILAN
                         HStack(spacing: 20) {
                             VStack(spacing: 4) {
                                 Text("TOTAL KESELURUHAN")
                                     .font(.system(size: 10, weight: .bold, design: .rounded))
                                     .foregroundColor(.gray)
-                                Text(AppFormatters.idr(currentDebtor.totalPinjaman))
+                                Text(hideFinancials ? "Rp •••••" : AppFormatters.idr(currentDebtor.totalPinjaman))
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(hideFinancials ? .gray : .white)
                             }
                             
                             Rectangle()
@@ -409,9 +568,9 @@ struct DebtorDetailView: View {
                                 Text("SUDAH DICICIL")
                                     .font(.system(size: 10, weight: .bold, design: .rounded))
                                     .foregroundColor(.gray)
-                                Text(AppFormatters.idr(currentDebtor.totalDibayar))
+                                Text(hideFinancials ? "Rp •••••" : AppFormatters.idr(currentDebtor.totalDibayar))
                                     .font(.system(size: 14, weight: .bold, design: .rounded))
-                                    .foregroundColor(.green)
+                                    .foregroundColor(hideFinancials ? .gray : .green)
                             }
                         }
                         .padding(.vertical, 10)
@@ -422,10 +581,8 @@ struct DebtorDetailView: View {
                     }
                     .padding(.top, 10)
                     
-                    // Tombol Aksi
                     HStack(spacing: 12) {
                         Button {
-                            // isPayment = false (Nambah Hutang)
                             activeSheet = .add(isPayment: false)
                         } label: {
                             HStack {
@@ -441,7 +598,6 @@ struct DebtorDetailView: View {
                         }
                         
                         Button {
-                            // isPayment = true (Bayar/Cicil)
                             activeSheet = .add(isPayment: true)
                         } label: {
                             HStack {
@@ -463,7 +619,6 @@ struct DebtorDetailView: View {
                 
                 Divider().background(Color.white.opacity(0.1)).padding(.vertical, 10)
                 
-                // Daftar Riwayat
                 VStack(alignment: .leading) {
                     Text("RIWAYAT TRANSAKSI (Ketuk untuk Edit)")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -502,7 +657,6 @@ struct DebtorDetailView: View {
     
     private func transactionRow(_ trx: DebtTransaction) -> some View {
         Button {
-            // Buka halaman EDIT saat transaksi diklik
             activeSheet = .edit(transactionId: trx.id)
         } label: {
             HStack {
@@ -511,16 +665,17 @@ struct DebtorDetailView: View {
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     
-                    // Tanggal sekarang ditampilkan untuk SEMUA transaksi
-                    Text(AppFormatters.date(trx.date))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(.gray)
+                    if trx.note != "Hutang Awal" {
+                        Text(AppFormatters.date(trx.date))
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(.gray)
+                    }
                 }
                 Spacer()
                 
-                Text(trx.isPayment ? "-\(AppFormatters.idr(trx.amount))" : "+\(AppFormatters.idr(trx.amount))")
+                Text(hideFinancials ? (trx.isPayment ? "- Rp •••••" : "+ Rp •••••") : (trx.isPayment ? "-\(AppFormatters.idr(trx.amount))" : "+\(AppFormatters.idr(trx.amount))"))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(trx.isPayment ? .green : .red)
+                    .foregroundColor(hideFinancials ? .gray : (trx.isPayment ? .green : .red))
                 
                 Image(systemName: "pencil")
                     .font(.system(size: 14, weight: .bold))
@@ -536,14 +691,8 @@ struct DebtorDetailView: View {
     
     private func deleteDebtor() {
         allDebtors.removeAll { $0.id == currentDebtor.id }
-        saveData()
+        saveAllData(allDebtors)
         presentationMode.wrappedValue.dismiss()
-    }
-    
-    private func saveData() {
-        if let encoded = try? JSONEncoder().encode(allDebtors) {
-            UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
-        }
     }
 }
 
@@ -561,7 +710,6 @@ struct AddDebtorSheet: View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
-                
                 VStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(currentTab == .hutangKu ? "NAMA ORANG/TOKO" : "NAMA PELANGGAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
@@ -606,10 +754,8 @@ struct AddDebtorSheet: View {
             .navigationTitle(currentTab == .hutangKu ? "Tambah Daftar (List A)" : "Tambah Daftar (List B)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Batal") { dismiss() }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) { Button("Batal") { dismiss() } }
+                ToolbarItem(placement: .navigationBarTrailing) { 
                     Button("Simpan") { saveDebtor() }
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.cyan)
@@ -621,18 +767,13 @@ struct AddDebtorSheet: View {
     private func saveDebtor() {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return }
-        
         var transactions: [DebtTransaction] = []
         if let debtValue = Int(initialDebt), debtValue > 0 {
             transactions.append(DebtTransaction(date: Date(), amount: debtValue, note: "Hutang Awal", isPayment: false))
         }
-        
         let newDebtor = Debtor(name: cleanName, phone: phone, type: currentTab, createdAt: Date(), transactions: transactions)
         debtors.insert(newDebtor, at: 0)
-        
-        if let encoded = try? JSONEncoder().encode(debtors) {
-            UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
-        }
+        saveAllData(debtors)
         dismiss()
     }
 }
@@ -647,14 +788,11 @@ struct AddTransactionSheet: View {
     
     @State private var amount = ""
     @State private var note = ""
-    @State private var date = Date() // Ditambahkan: Bisa milih tanggal
+    @State private var date = Date()
     
     var title: String {
-        if isHutangKu {
-            return isPayment ? "Bayar Cicilan" : "Ngutang Lagi"
-        } else {
-            return isPayment ? "Terima Cicilan" : "Beri Hutang"
-        }
+        if isHutangKu { return isPayment ? "Bayar Cicilan" : "Ngutang Lagi" } 
+        else { return isPayment ? "Terima Cicilan" : "Beri Hutang" }
     }
     
     var colorTheme: Color { isPayment ? .green : .red }
@@ -720,21 +858,17 @@ struct AddTransactionSheet: View {
         guard let amountValue = Int(amount), amountValue > 0 else { return }
         let cleanNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalNote = cleanNote.isEmpty ? (isPayment ? "Pembayaran/Cicilan" : "Tambah Hutang") : cleanNote
-        
         let newTrx = DebtTransaction(date: date, amount: amountValue, note: finalNote, isPayment: isPayment)
         
         if let index = allDebtors.firstIndex(where: { $0.id == debtorId }) {
             allDebtors[index].transactions.append(newTrx)
-            
-            if let encoded = try? JSONEncoder().encode(allDebtors) {
-                UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
-            }
+            saveAllData(allDebtors)
         }
         dismiss()
     }
 }
 
-// MARK: - Form Edit Transaksi (FITUR BARU)
+// MARK: - Form Edit Transaksi
 struct EditTransactionSheet: View {
     @Environment(\.dismiss) var dismiss
     var debtorId: UUID
@@ -744,7 +878,7 @@ struct EditTransactionSheet: View {
     @State private var amount = ""
     @State private var note = ""
     @State private var date = Date()
-    @State private var isPayment = false // false = Hutang nambah, true = Bayar cicilan
+    @State private var isPayment = false
     
     var colorTheme: Color { isPayment ? .green : .red }
     
@@ -754,7 +888,6 @@ struct EditTransactionSheet: View {
                 Color.black.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 16) {
-                        // Edit Jenis Transaksi
                         VStack(alignment: .leading, spacing: 6) {
                             Text("JENIS TRANSAKSI").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
                             Picker("Jenis", selection: $isPayment) {
@@ -769,7 +902,6 @@ struct EditTransactionSheet: View {
                         .padding(12)
                         .liquidGlass(cornerRadius: 16)
                         
-                        // Edit Nominal
                         VStack(alignment: .leading, spacing: 6) {
                             Text("NOMINAL (Rp)").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(colorTheme)
                             TextField("0", text: $amount)
@@ -783,7 +915,6 @@ struct EditTransactionSheet: View {
                         .padding(12)
                         .liquidGlass(cornerRadius: 16)
                         
-                        // Edit Tanggal
                         VStack(alignment: .leading, spacing: 6) {
                             Text("TANGGAL").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
                             DatePicker("Pilih Tanggal", selection: $date, displayedComponents: [.date, .hourAndMinute])
@@ -795,7 +926,6 @@ struct EditTransactionSheet: View {
                         .padding(12)
                         .liquidGlass(cornerRadius: 16)
                         
-                        // Edit Catatan
                         VStack(alignment: .leading, spacing: 6) {
                             Text("CATATAN").font(.system(size: 12, weight: .bold, design: .rounded)).foregroundColor(.cyan)
                             TextField("Catatan transaksi...", text: $note)
@@ -807,10 +937,7 @@ struct EditTransactionSheet: View {
                         .padding(12)
                         .liquidGlass(cornerRadius: 16)
                         
-                        // Tombol Hapus Transaksi Merah
-                        Button {
-                            deleteTransaction()
-                        } label: {
+                        Button { deleteTransaction() } label: {
                             Text("Hapus Transaksi Ini")
                                 .font(.system(size: 15, weight: .bold, design: .rounded))
                                 .foregroundColor(.red)
@@ -849,18 +976,13 @@ struct EditTransactionSheet: View {
     
     private func saveTransaction() {
         guard let amountValue = Int(amount), amountValue > 0 else { return }
-        
         if let dIndex = allDebtors.firstIndex(where: { $0.id == debtorId }),
            let tIndex = allDebtors[dIndex].transactions.firstIndex(where: { $0.id == transactionId }) {
-            
             allDebtors[dIndex].transactions[tIndex].amount = amountValue
             allDebtors[dIndex].transactions[tIndex].note = note.isEmpty ? "-" : note
             allDebtors[dIndex].transactions[tIndex].date = date
-            allDebtors[dIndex].transactions[tIndex].isPayment = isPayment // Bisa ubah tipe hutang ke cicilan
-            
-            if let encoded = try? JSONEncoder().encode(allDebtors) {
-                UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
-            }
+            allDebtors[dIndex].transactions[tIndex].isPayment = isPayment
+            saveAllData(allDebtors)
         }
         dismiss()
     }
@@ -868,9 +990,7 @@ struct EditTransactionSheet: View {
     private func deleteTransaction() {
         if let dIndex = allDebtors.firstIndex(where: { $0.id == debtorId }) {
             allDebtors[dIndex].transactions.removeAll(where: { $0.id == transactionId })
-            if let encoded = try? JSONEncoder().encode(allDebtors) {
-                UserDefaults.standard.set(encoded, forKey: "ibaal_cell_debtors")
-            }
+            saveAllData(allDebtors)
         }
         dismiss()
     }
