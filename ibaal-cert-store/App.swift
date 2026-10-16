@@ -38,7 +38,7 @@ struct FullFeatureWebView: UIViewRepresentable {
 
         let contentController = WKUserContentController()
 
-        // 1. Bypass capture file agar selalu bisa buka Galeri
+        // 1. Bypass capture atribut agar opsi Galeri Foto selalu muncul
         let unlockGalleryScript = WKUserScript(
             source: """
             function allowGalleryPicker() {
@@ -54,27 +54,25 @@ struct FullFeatureWebView: UIViewRepresentable {
         )
         contentController.addUserScript(unlockGalleryScript)
 
-        // 2. Bypass & Mock Geolocation Langsung dari GPS Native iPhone ke Web SIPGN
+        // 2. Jembatan Geolocation JavaScript ke CoreLocation Native iPhone
         let geoBridgeScript = WKUserScript(
             source: """
-            window.__currentLat = 0;
-            window.__currentLng = 0;
+            window.__currentLat = null;
+            window.__currentLng = null;
             window.__currentAcc = 10;
-            window.__hasLocation = false;
 
             window.updateDeviceLocation = function(lat, lng, acc) {
                 window.__currentLat = lat;
                 window.__currentLng = lng;
                 window.__currentAcc = acc;
-                window.__hasLocation = true;
             };
 
             if (navigator.geolocation) {
-                const nativeGetCurrentPosition = navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
-                const nativeWatchPosition = navigator.geolocation.watchPosition.bind(navigator.geolocation);
+                const originalGet = navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
+                const originalWatch = navigator.geolocation.watchPosition.bind(navigator.geolocation);
 
                 navigator.geolocation.getCurrentPosition = function(success, error, options) {
-                    if (window.__hasLocation) {
+                    if (window.__currentLat !== null && window.__currentLng !== null) {
                         success({
                             coords: {
                                 latitude: window.__currentLat,
@@ -90,7 +88,7 @@ struct FullFeatureWebView: UIViewRepresentable {
                     } else {
                         window.webkit.messageHandlers.requestLocationUpdate.postMessage({});
                         setTimeout(() => {
-                            if (window.__hasLocation) {
+                            if (window.__currentLat !== null && window.__currentLng !== null) {
                                 success({
                                     coords: {
                                         latitude: window.__currentLat,
@@ -104,15 +102,15 @@ struct FullFeatureWebView: UIViewRepresentable {
                                     timestamp: Date.now()
                                 });
                             } else {
-                                nativeGetCurrentPosition(success, error, options);
+                                originalGet(success, error, options);
                             }
-                        }, 1000);
+                        }, 800);
                     }
                 };
 
                 navigator.geolocation.watchPosition = function(success, error, options) {
                     return setInterval(() => {
-                        if (window.__hasLocation) {
+                        if (window.__currentLat !== null && window.__currentLng !== null) {
                             success({
                                 coords: {
                                     latitude: window.__currentLat,
@@ -126,7 +124,7 @@ struct FullFeatureWebView: UIViewRepresentable {
                                 timestamp: Date.now()
                             });
                         }
-                    }, 3000);
+                    }, 2500);
                 };
             }
             """,
@@ -135,7 +133,7 @@ struct FullFeatureWebView: UIViewRepresentable {
         )
         contentController.addUserScript(geoBridgeScript)
 
-        // 3. Simpan dan Isi Otomatis Login Akun
+        // 3. Simpan & Auto-Fill Akun Login
         let savedUser = UserDefaults.standard.string(forKey: "saved_siphr_user") ?? ""
         let savedPass = UserDefaults.standard.string(forKey: "saved_siphr_pass") ?? ""
         
@@ -175,6 +173,20 @@ struct FullFeatureWebView: UIViewRepresentable {
                         }
                     });
                 });
+
+                const submitButtons = document.querySelectorAll('button[type="submit"], input[type="submit"], button.btn');
+                submitButtons.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const uInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
+                        const pInput = document.querySelector('input[type="password"]');
+                        if (uInput && pInput && uInput.value && pInput.value) {
+                            window.webkit.messageHandlers.saveCredentialsHandler.postMessage({
+                                user: uInput.value,
+                                pass: pInput.value
+                            });
+                        }
+                    });
+                });
             }
 
             document.addEventListener('DOMContentLoaded', () => {
@@ -199,7 +211,7 @@ struct FullFeatureWebView: UIViewRepresentable {
         wv.scrollView.bounces = true
         
         context.coordinator.webView = wv
-        context.coordinator.startUpdatingLocation()
+        context.coordinator.setupLocationManager()
         
         wv.load(URLRequest(url: targetURL))
         return wv
@@ -215,27 +227,36 @@ struct FullFeatureWebView: UIViewRepresentable {
         var parent: FullFeatureWebView
         weak var webView: WKWebView?
         let locationManager = CLLocationManager()
-        var lastLocation: CLLocation?
+        var latestLocation: CLLocation?
 
         init(_ parent: FullFeatureWebView) {
             self.parent = parent
             super.init()
-            self.locationManager.delegate = self
-            self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
         }
 
-        func startUpdatingLocation() {
-            locationManager.requestWhenInUseAuthorization()
+        func setupLocationManager() {
+            locationManager.delegate = self
+            locationManager.desiredAccuracy = kCLLocationAccuracyBest
+            
+            if locationManager.authorizationStatus == .notDetermined {
+                locationManager.requestWhenInUseAuthorization()
+            }
             locationManager.startUpdatingLocation()
+        }
+
+        func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+            if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+                manager.startUpdatingLocation()
+            }
         }
 
         func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
             guard let loc = locations.last else { return }
-            self.lastLocation = loc
-            injectLocationToWeb(loc)
+            self.latestLocation = loc
+            sendLocationToJS(loc)
         }
 
-        func injectLocationToWeb(_ loc: CLLocation) {
+        func sendLocationToJS(_ loc: CLLocation) {
             let js = "if (window.updateDeviceLocation) { window.updateDeviceLocation(\(loc.coordinate.latitude), \(loc.coordinate.longitude), \(loc.horizontalAccuracy)); }"
             DispatchQueue.main.async {
                 self.webView?.evaluateJavaScript(js, completionHandler: nil)
@@ -249,15 +270,14 @@ struct FullFeatureWebView: UIViewRepresentable {
                 UserDefaults.standard.set(user, forKey: "saved_siphr_user")
                 UserDefaults.standard.set(pass, forKey: "saved_siphr_pass")
             } else if message.name == "requestLocationUpdate" {
-                if let loc = self.lastLocation {
-                    injectLocationToWeb(loc)
+                if let loc = self.latestLocation {
+                    sendLocationToJS(loc)
                 } else {
                     locationManager.startUpdatingLocation()
                 }
             }
         }
 
-        // Tangani izin WebKit modern untuk Media & Lokasi
         @available(iOS 15.0, *)
         func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
             decisionHandler(.grant)
