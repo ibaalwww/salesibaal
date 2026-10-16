@@ -18,14 +18,11 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            
-            webView
-                .ignoresSafeArea(.all, edges: .bottom)
+            webView.ignoresSafeArea(.all, edges: .bottom)
         }
     }
 }
 
-// MARK: - WKWebView Wrapper dengan Izin Kamera, Galeri, Auto-Fill, dan GPS Lokasi
 struct FullFeatureWebView: UIViewRepresentable {
     let targetURL = URL(string: "https://sipgn-siphr.bgn.go.id/")!
 
@@ -41,19 +38,15 @@ struct FullFeatureWebView: UIViewRepresentable {
 
         let contentController = WKUserContentController()
 
-        // 1. Skrip pembuka galeri (bypass capture camera)
+        // 1. Bypass capture file agar selalu bisa buka Galeri
         let unlockGalleryScript = WKUserScript(
             source: """
             function allowGalleryPicker() {
                 const inputs = document.querySelectorAll('input[type="file"]');
-                inputs.forEach(input => {
-                    input.removeAttribute('capture');
-                });
+                inputs.forEach(input => input.removeAttribute('capture'));
             }
             document.addEventListener('DOMContentLoaded', allowGalleryPicker);
-            const observer = new MutationObserver(() => {
-                allowGalleryPicker();
-            });
+            const observer = new MutationObserver(() => allowGalleryPicker());
             observer.observe(document.documentElement, { childList: true, subtree: true });
             """,
             injectionTime: .atDocumentEnd,
@@ -61,7 +54,88 @@ struct FullFeatureWebView: UIViewRepresentable {
         )
         contentController.addUserScript(unlockGalleryScript)
 
-        // 2. Skrip simpan & isi otomatis kredensial akun
+        // 2. Bypass & Mock Geolocation Langsung dari GPS Native iPhone ke Web SIPGN
+        let geoBridgeScript = WKUserScript(
+            source: """
+            window.__currentLat = 0;
+            window.__currentLng = 0;
+            window.__currentAcc = 10;
+            window.__hasLocation = false;
+
+            window.updateDeviceLocation = function(lat, lng, acc) {
+                window.__currentLat = lat;
+                window.__currentLng = lng;
+                window.__currentAcc = acc;
+                window.__hasLocation = true;
+            };
+
+            if (navigator.geolocation) {
+                const nativeGetCurrentPosition = navigator.geolocation.getCurrentPosition.bind(navigator.geolocation);
+                const nativeWatchPosition = navigator.geolocation.watchPosition.bind(navigator.geolocation);
+
+                navigator.geolocation.getCurrentPosition = function(success, error, options) {
+                    if (window.__hasLocation) {
+                        success({
+                            coords: {
+                                latitude: window.__currentLat,
+                                longitude: window.__currentLng,
+                                accuracy: window.__currentAcc,
+                                altitude: null,
+                                altitudeAccuracy: null,
+                                heading: null,
+                                speed: null
+                            },
+                            timestamp: Date.now()
+                        });
+                    } else {
+                        window.webkit.messageHandlers.requestLocationUpdate.postMessage({});
+                        setTimeout(() => {
+                            if (window.__hasLocation) {
+                                success({
+                                    coords: {
+                                        latitude: window.__currentLat,
+                                        longitude: window.__currentLng,
+                                        accuracy: window.__currentAcc,
+                                        altitude: null,
+                                        altitudeAccuracy: null,
+                                        heading: null,
+                                        speed: null
+                                    },
+                                    timestamp: Date.now()
+                                });
+                            } else {
+                                nativeGetCurrentPosition(success, error, options);
+                            }
+                        }, 1000);
+                    }
+                };
+
+                navigator.geolocation.watchPosition = function(success, error, options) {
+                    return setInterval(() => {
+                        if (window.__hasLocation) {
+                            success({
+                                coords: {
+                                    latitude: window.__currentLat,
+                                    longitude: window.__currentLng,
+                                    accuracy: window.__currentAcc,
+                                    altitude: null,
+                                    altitudeAccuracy: null,
+                                    heading: null,
+                                    speed: null
+                                },
+                                timestamp: Date.now()
+                            });
+                        }
+                    }, 3000);
+                };
+            }
+            """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+        contentController.addUserScript(geoBridgeScript)
+
+        // 3. Simpan dan Isi Otomatis Login Akun
         let savedUser = UserDefaults.standard.string(forKey: "saved_siphr_user") ?? ""
         let savedPass = UserDefaults.standard.string(forKey: "saved_siphr_pass") ?? ""
         
@@ -71,7 +145,7 @@ struct FullFeatureWebView: UIViewRepresentable {
             const autoPass = "\(savedPass)";
 
             function fillCredentials() {
-                const userInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"], input[id*="user"], input[id*="email"]');
+                const userInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
                 const passInput = document.querySelector('input[type="password"]');
 
                 if (userInput && autoUser && !userInput.value) {
@@ -101,35 +175,21 @@ struct FullFeatureWebView: UIViewRepresentable {
                         }
                     });
                 });
-
-                const submitButtons = document.querySelectorAll('button[type="submit"], input[type="submit"], button.btn');
-                submitButtons.forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const uInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
-                        const pInput = document.querySelector('input[type="password"]');
-                        if (uInput && pInput && uInput.value && pInput.value) {
-                            window.webkit.messageHandlers.saveCredentialsHandler.postMessage({
-                                user: uInput.value,
-                                pass: pInput.value
-                            });
-                        }
-                    });
-                });
             }
 
             document.addEventListener('DOMContentLoaded', () => {
                 fillCredentials();
                 setupLoginInterceptor();
             });
-
             setInterval(fillCredentials, 1200);
             """,
             injectionTime: .atDocumentEnd,
             forMainFrameOnly: false
         )
         contentController.addUserScript(credentialsScript)
+        
         contentController.add(context.coordinator, name: "saveCredentialsHandler")
-
+        contentController.add(context.coordinator, name: "requestLocationUpdate")
         config.userContentController = contentController
 
         let wv = WKWebView(frame: .zero, configuration: config)
@@ -138,11 +198,10 @@ struct FullFeatureWebView: UIViewRepresentable {
         wv.allowsBackForwardNavigationGestures = true
         wv.scrollView.bounces = true
         
-        // Panggil pemicu izin lokasi native
-        context.coordinator.requestLocationPermission()
+        context.coordinator.webView = wv
+        context.coordinator.startUpdatingLocation()
         
-        let req = URLRequest(url: targetURL)
-        wv.load(req)
+        wv.load(URLRequest(url: targetURL))
         return wv
     }
 
@@ -154,17 +213,32 @@ struct FullFeatureWebView: UIViewRepresentable {
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, CLLocationManagerDelegate {
         var parent: FullFeatureWebView
+        weak var webView: WKWebView?
         let locationManager = CLLocationManager()
+        var lastLocation: CLLocation?
 
         init(_ parent: FullFeatureWebView) {
             self.parent = parent
             super.init()
             self.locationManager.delegate = self
+            self.locationManager.desiredAccuracy = kCLLocationAccuracyBest
         }
 
-        func requestLocationPermission() {
-            if locationManager.authorizationStatus == .notDetermined {
-                locationManager.requestWhenInUseAuthorization()
+        func startUpdatingLocation() {
+            locationManager.requestWhenInUseAuthorization()
+            locationManager.startUpdatingLocation()
+        }
+
+        func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+            guard let loc = locations.last else { return }
+            self.lastLocation = loc
+            injectLocationToWeb(loc)
+        }
+
+        func injectLocationToWeb(_ loc: CLLocation) {
+            let js = "if (window.updateDeviceLocation) { window.updateDeviceLocation(\(loc.coordinate.latitude), \(loc.coordinate.longitude), \(loc.horizontalAccuracy)); }"
+            DispatchQueue.main.async {
+                self.webView?.evaluateJavaScript(js, completionHandler: nil)
             }
         }
 
@@ -174,10 +248,21 @@ struct FullFeatureWebView: UIViewRepresentable {
                let user = dict["user"], let pass = dict["pass"] {
                 UserDefaults.standard.set(user, forKey: "saved_siphr_user")
                 UserDefaults.standard.set(pass, forKey: "saved_siphr_pass")
+            } else if message.name == "requestLocationUpdate" {
+                if let loc = self.lastLocation {
+                    injectLocationToWeb(loc)
+                } else {
+                    locationManager.startUpdatingLocation()
+                }
             }
         }
 
-        // Penanganan dialog web JS (Alert & Confirm)
+        // Tangani izin WebKit modern untuk Media & Lokasi
+        @available(iOS 15.0, *)
+        func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+            decisionHandler(.grant)
+        }
+
         func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
             let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in completionHandler() }))
