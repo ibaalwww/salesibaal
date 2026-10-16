@@ -54,8 +54,8 @@ jobs:
                 path: ibaal-cert-store/Info.plist
               settings:
                 base:
-                  PRODUCT_NAME: "POP SIPGN"
-                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.popsipgn"
+                  PRODUCT_NAME: "SIPGN SIPHR"
+                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.sipgnsiphr"
                   TARGETED_DEVICE_FAMILY: "1"
                   SWIFT_VERSION: "5.0"
                   CODE_SIGNING_REQUIRED: "NO"
@@ -111,11 +111,11 @@ jobs:
           mkdir -p build/Payload
           cp -r build/ibaal-cert-store.xcarchive/Products/Applications/*.app build/Payload/
           cd build
-          zip -r pop-sipgn.ipa Payload
+          zip -r sipgn-siphr.ipa Payload
           cd ..
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pop-sipgn-IPA
-          path: build/pop-sipgn.ipa
+          name: sipgn-siphr-IPA
+          path: build/sipgn-siphr.ipa
