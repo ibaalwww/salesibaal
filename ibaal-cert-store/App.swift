@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import CoreLocation
 
 @main
 struct WebWrapperApp: App {
@@ -24,12 +25,11 @@ struct ContentView: View {
     }
 }
 
-// MARK: - WKWebView Wrapper dengan Auto-Fill Kredensial & Akses Galeri
+// MARK: - WKWebView Wrapper dengan Izin Kamera, Galeri, Auto-Fill, dan GPS Lokasi
 struct FullFeatureWebView: UIViewRepresentable {
     let targetURL = URL(string: "https://sipgn-siphr.bgn.go.id/")!
 
     func makeUIView(context: Context) -> WKWebView {
-        // Konfigurasi data store persisten agar cookies, cache, dan sesi login tidak hilang
         let config = WKWebViewConfiguration()
         config.websiteDataStore = WKWebsiteDataStore.default()
         
@@ -41,7 +41,7 @@ struct FullFeatureWebView: UIViewRepresentable {
 
         let contentController = WKUserContentController()
 
-        // 1. Skrip untuk menghapus atribut capture agar selalu bisa pilih dari galeri
+        // 1. Skrip pembuka galeri (bypass capture camera)
         let unlockGalleryScript = WKUserScript(
             source: """
             function allowGalleryPicker() {
@@ -51,7 +51,7 @@ struct FullFeatureWebView: UIViewRepresentable {
                 });
             }
             document.addEventListener('DOMContentLoaded', allowGalleryPicker);
-            const observer = new MutationObserver((mutations) => {
+            const observer = new MutationObserver(() => {
                 allowGalleryPicker();
             });
             observer.observe(document.documentElement, { childList: true, subtree: true });
@@ -61,7 +61,7 @@ struct FullFeatureWebView: UIViewRepresentable {
         )
         contentController.addUserScript(unlockGalleryScript)
 
-        // 2. Skrip Penyimpan & Pengisi Otomatis Email/Username dan Password
+        // 2. Skrip simpan & isi otomatis kredensial akun
         let savedUser = UserDefaults.standard.string(forKey: "saved_siphr_user") ?? ""
         let savedPass = UserDefaults.standard.string(forKey: "saved_siphr_pass") ?? ""
         
@@ -91,7 +91,7 @@ struct FullFeatureWebView: UIViewRepresentable {
                 const forms = document.querySelectorAll('form');
                 forms.forEach(form => {
                     form.addEventListener('submit', function() {
-                        const uInput = form.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"], input[id*="user"], input[id*="email"]');
+                        const uInput = form.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
                         const pInput = form.querySelector('input[type="password"]');
                         if (uInput && pInput && uInput.value && pInput.value) {
                             window.webkit.messageHandlers.saveCredentialsHandler.postMessage({
@@ -102,10 +102,10 @@ struct FullFeatureWebView: UIViewRepresentable {
                     });
                 });
 
-                const submitButtons = document.querySelectorAll('button[type="submit"], input[type="submit"], button.btn, button:not([type])');
+                const submitButtons = document.querySelectorAll('button[type="submit"], input[type="submit"], button.btn');
                 submitButtons.forEach(btn => {
                     btn.addEventListener('click', function() {
-                        const uInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"], input[id*="user"], input[id*="email"]');
+                        const uInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
                         const pInput = document.querySelector('input[type="password"]');
                         if (uInput && pInput && uInput.value && pInput.value) {
                             window.webkit.messageHandlers.saveCredentialsHandler.postMessage({
@@ -138,6 +138,9 @@ struct FullFeatureWebView: UIViewRepresentable {
         wv.allowsBackForwardNavigationGestures = true
         wv.scrollView.bounces = true
         
+        // Panggil pemicu izin lokasi native
+        context.coordinator.requestLocationPermission()
+        
         let req = URLRequest(url: targetURL)
         wv.load(req)
         return wv
@@ -149,14 +152,22 @@ struct FullFeatureWebView: UIViewRepresentable {
         Coordinator(self)
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, CLLocationManagerDelegate {
         var parent: FullFeatureWebView
+        let locationManager = CLLocationManager()
 
         init(_ parent: FullFeatureWebView) {
             self.parent = parent
+            super.init()
+            self.locationManager.delegate = self
         }
 
-        // Tangkap data email & password yang diinput user lalu simpan permanen
+        func requestLocationPermission() {
+            if locationManager.authorizationStatus == .notDetermined {
+                locationManager.requestWhenInUseAuthorization()
+            }
+        }
+
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "saveCredentialsHandler",
                let dict = message.body as? [String: String],
