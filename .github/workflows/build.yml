@@ -20,9 +20,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: 🚀 AUTO-GENERATE APPLE NATIVE FULL SCREEN 🚀
+      - name: 🚀 AUTO-GENERATE APPLE NATIVE FULL SCREEN & PERMISSIONS 🚀
         run: |
-          # 1. Hapus file manual lama
+          # 1. Bersihkan file lama
           rm -f ibaal-cert-store/Info.plist
           rm -f ibaal-cert-store/LaunchScreen.storyboard
           
@@ -71,7 +71,7 @@ jobs:
                   INFOPLIST_KEY_UIViewControllerBasedStatusBarAppearance: "NO"
           EOF
           
-          # 4. Info.plist dengan izin Kamera, Galeri, dan Akses File
+          # 4. Info.plist dengan izin Kamera, Galeri, dan Akses Lokasi GPS Lengkap
           cat << 'EOF' > ibaal-cert-store/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -82,11 +82,15 @@ jobs:
                   <string>Mali-Bold.ttf</string>
               </array>
               <key>NSCameraUsageDescription</key>
-              <string>Aplikasi memerlukan izin kamera untuk mengambil foto dokumen atau bukti kegiatan.</string>
+              <string>Aplikasi memerlukan izin kamera untuk mengambil foto dokumen atau bukti kehadiran presensi.</string>
               <key>NSPhotoLibraryUsageDescription</key>
               <string>Aplikasi memerlukan izin galeri untuk memilih foto dari perangkat.</string>
               <key>NSPhotoLibraryAddUsageDescription</key>
-              <string>Aplikasi memerlukan izin untuk menyimpan file atau foto.</string>
+              <string>Aplikasi memerlukan izin untuk menyimpan file atau foto ke galeri.</string>
+              <key>NSLocationWhenInUseUsageDescription</key>
+              <string>Aplikasi memerlukan akses lokasi untuk verifikasi titik koordinat presensi kehadiran.</string>
+              <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+              <string>Aplikasi memerlukan akses lokasi untuk memvalidasi posisi saat melakukan presensi.</string>
           </dict>
           </plist>
           EOF
