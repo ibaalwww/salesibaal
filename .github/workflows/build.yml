@@ -22,11 +22,11 @@ jobs:
 
       - name: 🚀 AUTO-GENERATE APPLE NATIVE FULL SCREEN 🚀
         run: |
-          # 1. Hapus file manual lama yang sering ditolak Xcode
+          # 1. Hapus file manual lama
           rm -f ibaal-cert-store/Info.plist
           rm -f ibaal-cert-store/LaunchScreen.storyboard
           
-          # 2. Bikin Asset Catalog Resmi (Syarat mutlak agar iOS menganggap ini aplikasi modern)
+          # 2. Buat Asset Catalog untuk AppIcon
           mkdir -p ibaal-cert-store/Assets.xcassets/AppIcon.appiconset
           cat << 'EOF' > ibaal-cert-store/Assets.xcassets/AppIcon.appiconset/Contents.json
           {
@@ -35,7 +35,7 @@ jobs:
           }
           EOF
           
-          # 3. Rakit project.yml yang MEMAKSA Xcode membuat LaunchScreen Asli dari sistem!
+          # 3. Konfigurasi project.yml
           cat << 'EOF' > project.yml
           name: ibaal-cert-store
           options:
@@ -54,29 +54,24 @@ jobs:
                 path: ibaal-cert-store/Info.plist
               settings:
                 base:
-                  # --- PENGATURAN WAJIB ---
-                  PRODUCT_NAME: "ibaal cert store"
-                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.sales.fs1"
+                  PRODUCT_NAME: "POP SIPGN"
+                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.popsipgn"
                   TARGETED_DEVICE_FAMILY: "1"
                   SWIFT_VERSION: "5.0"
                   CODE_SIGNING_REQUIRED: "NO"
                   CODE_SIGN_IDENTITY: ""
                   CODE_SIGNING_ALLOWED: "NO"
                   ASSETCATALOG_COMPILER_APPICON_NAME: "AppIcon"
-                  
-                  # --- KUNCI FULL SCREEN NATIVE XCODE ---
                   GENERATE_INFOPLIST_FILE: "YES"
                   CURRENT_PROJECT_VERSION: "1"
                   MARKETING_VERSION: "1.0"
                   INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-                  
-                  # --- PENGATURAN TAMPILAN STANDAR ---
                   INFOPLIST_KEY_LSRequiresIPhoneOS: "YES"
                   INFOPLIST_KEY_UIStatusBarStyle: "UIStatusBarStyleLightContent"
                   INFOPLIST_KEY_UIViewControllerBasedStatusBarAppearance: "NO"
           EOF
           
-          # 4. Info.plist minimalis HANYA untuk mendaftarkan Font Mali (sisanya Apple yang urus otomatis)
+          # 4. Info.plist dengan izin Kamera, Galeri, dan Akses File
           cat << 'EOF' > ibaal-cert-store/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -86,6 +81,12 @@ jobs:
               <array>
                   <string>Mali-Bold.ttf</string>
               </array>
+              <key>NSCameraUsageDescription</key>
+              <string>Aplikasi memerlukan izin kamera untuk mengambil foto dokumen atau bukti kegiatan.</string>
+              <key>NSPhotoLibraryUsageDescription</key>
+              <string>Aplikasi memerlukan izin galeri untuk memilih foto dari perangkat.</string>
+              <key>NSPhotoLibraryAddUsageDescription</key>
+              <string>Aplikasi memerlukan izin untuk menyimpan file atau foto.</string>
           </dict>
           </plist>
           EOF
@@ -110,11 +111,11 @@ jobs:
           mkdir -p build/Payload
           cp -r build/ibaal-cert-store.xcarchive/Products/Applications/*.app build/Payload/
           cd build
-          zip -r ibaal-cert-store.ipa Payload
+          zip -r pop-sipgn.ipa Payload
           cd ..
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ibaal-cert-store-IPA
-          path: build/ibaal-cert-store.ipa
+          name: pop-sipgn-IPA
+          path: build/pop-sipgn.ipa
