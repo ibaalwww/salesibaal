@@ -54,8 +54,8 @@ jobs:
                 path: ibaal-cert-store/Info.plist
               settings:
                 base:
-                  PRODUCT_NAME: "SIPGN SIPHR"
-                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.sipgnsiphr"
+                  PRODUCT_NAME: "POP SIPGN"
+                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.popsipgn"
                   TARGETED_DEVICE_FAMILY: "1"
                   SWIFT_VERSION: "5.0"
                   CODE_SIGNING_REQUIRED: "NO"
@@ -71,7 +71,7 @@ jobs:
                   INFOPLIST_KEY_UIViewControllerBasedStatusBarAppearance: "NO"
           EOF
           
-          # 4. Info.plist dengan izin Kamera, Galeri, dan Akses Lokasi Standar iOS
+          # 4. Info.plist dengan bypass ATS, izin Galeri, Kamera, dan Lokasi GPS
           cat << 'EOF' > ibaal-cert-store/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -81,12 +81,17 @@ jobs:
               <array>
                   <string>Mali-Bold.ttf</string>
               </array>
+              <key>NSAppTransportSecurity</key>
+              <dict>
+                  <key>NSAllowsArbitraryLoads</key>
+                  <true/>
+              </dict>
               <key>NSCameraUsageDescription</key>
-              <string>Aplikasi memerlukan izin kamera untuk presensi kehadiran.</string>
+              <string>Aplikasi memerlukan izin kamera untuk presensi dan bukti foto.</string>
               <key>NSPhotoLibraryUsageDescription</key>
-              <string>Aplikasi memerlukan izin galeri untuk memilih foto dari perangkat.</string>
+              <string>Aplikasi memerlukan izin galeri untuk memilih foto dokumen atau kegiatan.</string>
               <key>NSPhotoLibraryAddUsageDescription</key>
-              <string>Aplikasi memerlukan izin menyimpan foto ke perangkat.</string>
+              <string>Aplikasi memerlukan izin untuk menyimpan file atau foto.</string>
               <key>NSLocationWhenInUseUsageDescription</key>
               <string>Aplikasi memerlukan izin lokasi saat digunakan untuk validasi koordinat presensi SIPGN.</string>
               <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -115,11 +120,11 @@ jobs:
           mkdir -p build/Payload
           cp -r build/ibaal-cert-store.xcarchive/Products/Applications/*.app build/Payload/
           cd build
-          zip -r sipgn-siphr.ipa Payload
+          zip -r pop-sipgn.ipa Payload
           cd ..
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sipgn-siphr-IPA
-          path: build/sipgn-siphr.ipa
+          name: pop-sipgn-IPA
+          path: build/pop-sipgn.ipa
