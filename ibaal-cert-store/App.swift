@@ -24,7 +24,7 @@ struct ContentView: View {
 }
 
 struct FullFeatureWebView: UIViewRepresentable {
-    let targetURL = URL(string: "https://sipgn-siphr.bgn.go.id/")!
+    let targetURL = URL(string: "https://pop-sipgn.bgn.go.id/")!
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -38,15 +38,21 @@ struct FullFeatureWebView: UIViewRepresentable {
 
         let contentController = WKUserContentController()
 
-        // 1. Bypass capture atribut agar opsi Galeri Foto selalu muncul
+        // 1. Bypass capture input file agar opsi galeri foto selalu aktif
         let unlockGalleryScript = WKUserScript(
             source: """
-            function allowGalleryPicker() {
-                const inputs = document.querySelectorAll('input[type="file"]');
-                inputs.forEach(input => input.removeAttribute('capture'));
+            function unlockGallery() {
+                try {
+                    const inputs = document.querySelectorAll('input[type="file"]');
+                    inputs.forEach(input => input.removeAttribute('capture'));
+                } catch (e) {}
             }
-            document.addEventListener('DOMContentLoaded', allowGalleryPicker);
-            const observer = new MutationObserver(() => allowGalleryPicker());
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', unlockGallery);
+            } else {
+                unlockGallery();
+            }
+            const observer = new MutationObserver(() => unlockGallery());
             observer.observe(document.documentElement, { childList: true, subtree: true });
             """,
             injectionTime: .atDocumentEnd,
@@ -54,7 +60,7 @@ struct FullFeatureWebView: UIViewRepresentable {
         )
         contentController.addUserScript(unlockGalleryScript)
 
-        // 2. Jembatan Geolocation JavaScript ke CoreLocation Native iPhone
+        // 2. Jembatan Geolocation GPS native iPhone ke Web
         let geoBridgeScript = WKUserScript(
             source: """
             window.__currentLat = null;
@@ -134,8 +140,8 @@ struct FullFeatureWebView: UIViewRepresentable {
         contentController.addUserScript(geoBridgeScript)
 
         // 3. Simpan & Auto-Fill Akun Login
-        let savedUser = UserDefaults.standard.string(forKey: "saved_siphr_user") ?? ""
-        let savedPass = UserDefaults.standard.string(forKey: "saved_siphr_pass") ?? ""
+        let savedUser = UserDefaults.standard.string(forKey: "saved_popsipgn_user") ?? ""
+        let savedPass = UserDefaults.standard.string(forKey: "saved_popsipgn_pass") ?? ""
         
         let credentialsScript = WKUserScript(
             source: """
@@ -210,10 +216,15 @@ struct FullFeatureWebView: UIViewRepresentable {
         wv.allowsBackForwardNavigationGestures = true
         wv.scrollView.bounces = true
         
+        // Samarkan User-Agent sebagai Safari iPhone resmi (Mencegah Blank Screen)
+        wv.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+
         context.coordinator.webView = wv
         context.coordinator.setupLocationManager()
         
-        wv.load(URLRequest(url: targetURL))
+        var req = URLRequest(url: targetURL)
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        wv.load(req)
         return wv
     }
 
@@ -267,14 +278,24 @@ struct FullFeatureWebView: UIViewRepresentable {
             if message.name == "saveCredentialsHandler",
                let dict = message.body as? [String: String],
                let user = dict["user"], let pass = dict["pass"] {
-                UserDefaults.standard.set(user, forKey: "saved_siphr_user")
-                UserDefaults.standard.set(pass, forKey: "saved_siphr_pass")
+                UserDefaults.standard.set(user, forKey: "saved_popsipgn_user")
+                UserDefaults.standard.set(pass, forKey: "saved_popsipgn_pass")
             } else if message.name == "requestLocationUpdate" {
                 if let loc = self.latestLocation {
                     sendLocationToJS(loc)
                 } else {
                     locationManager.startUpdatingLocation()
                 }
+            }
+        }
+
+        // Tangani bypass sertifikat SSL handshake pemerintah jika diperlukan
+        func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+               let serverTrust = challenge.protectionSpace.serverTrust {
+                completionHandler(.useCredential, URLCredential(trust: serverTrust))
+            } else {
+                completionHandler(.performDefaultHandling, nil)
             }
         }
 
