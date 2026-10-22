@@ -3,7 +3,7 @@ import WebKit
 import CoreLocation
 
 @main
-struct WebWrapperApp: App {
+struct KurirMBGApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -13,7 +13,7 @@ struct WebWrapperApp: App {
 }
 
 struct ContentView: View {
-    @State private var webView = FullFeatureWebView()
+    @State private var webView = KurirWebView()
     
     var body: some View {
         ZStack {
@@ -23,8 +23,9 @@ struct ContentView: View {
     }
 }
 
-struct FullFeatureWebView: UIViewRepresentable {
-    let targetURL = URL(string: "https://pop-sipgn.bgn.go.id/")!
+struct KurirWebView: UIViewRepresentable {
+    // URL Target khusus portal Kurir MBG SIPGN
+    let targetURL = URL(string: "https://kurirmbg-sipgn.bgn.go.id/auth/login")!
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -38,7 +39,7 @@ struct FullFeatureWebView: UIViewRepresentable {
 
         let contentController = WKUserContentController()
 
-        // 1. Bypass capture input file agar opsi galeri foto selalu aktif
+        // 1. Skrip untuk memastikan tombol upload/kamera web membuka galeri foto
         let unlockGalleryScript = WKUserScript(
             source: """
             function unlockGallery() {
@@ -60,7 +61,7 @@ struct FullFeatureWebView: UIViewRepresentable {
         )
         contentController.addUserScript(unlockGalleryScript)
 
-        // 2. Jembatan Geolocation GPS native iPhone ke Web
+        // 2. Jembatan GPS Geolocation native iPhone ke Web Kurir
         let geoBridgeScript = WKUserScript(
             source: """
             window.__currentLat = null;
@@ -84,10 +85,7 @@ struct FullFeatureWebView: UIViewRepresentable {
                                 latitude: window.__currentLat,
                                 longitude: window.__currentLng,
                                 accuracy: window.__currentAcc,
-                                altitude: null,
-                                altitudeAccuracy: null,
-                                heading: null,
-                                speed: null
+                                altitude: null, altitudeAccuracy: null, heading: null, speed: null
                             },
                             timestamp: Date.now()
                         });
@@ -100,10 +98,7 @@ struct FullFeatureWebView: UIViewRepresentable {
                                         latitude: window.__currentLat,
                                         longitude: window.__currentLng,
                                         accuracy: window.__currentAcc,
-                                        altitude: null,
-                                        altitudeAccuracy: null,
-                                        heading: null,
-                                        speed: null
+                                        altitude: null, altitudeAccuracy: null, heading: null, speed: null
                                     },
                                     timestamp: Date.now()
                                 });
@@ -122,10 +117,7 @@ struct FullFeatureWebView: UIViewRepresentable {
                                     latitude: window.__currentLat,
                                     longitude: window.__currentLng,
                                     accuracy: window.__currentAcc,
-                                    altitude: null,
-                                    altitudeAccuracy: null,
-                                    heading: null,
-                                    speed: null
+                                    altitude: null, altitudeAccuracy: null, heading: null, speed: null
                                 },
                                 timestamp: Date.now()
                             });
@@ -139,9 +131,9 @@ struct FullFeatureWebView: UIViewRepresentable {
         )
         contentController.addUserScript(geoBridgeScript)
 
-        // 3. Simpan & Auto-Fill Akun Login
-        let savedUser = UserDefaults.standard.string(forKey: "saved_popsipgn_user") ?? ""
-        let savedPass = UserDefaults.standard.string(forKey: "saved_popsipgn_pass") ?? ""
+        // 3. Auto-Fill & Simpan Kredensial Login Kurir
+        let savedUser = UserDefaults.standard.string(forKey: "saved_kurirmbg_user") ?? ""
+        let savedPass = UserDefaults.standard.string(forKey: "saved_kurirmbg_pass") ?? ""
         
         let credentialsScript = WKUserScript(
             source: """
@@ -149,7 +141,7 @@ struct FullFeatureWebView: UIViewRepresentable {
             const autoPass = "\(savedPass)";
 
             function fillCredentials() {
-                const userInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
+                const userInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"], input[id*="email"], input[id*="username"]');
                 const passInput = document.querySelector('input[type="password"]');
 
                 if (userInput && autoUser && !userInput.value) {
@@ -171,20 +163,6 @@ struct FullFeatureWebView: UIViewRepresentable {
                     form.addEventListener('submit', function() {
                         const uInput = form.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
                         const pInput = form.querySelector('input[type="password"]');
-                        if (uInput && pInput && uInput.value && pInput.value) {
-                            window.webkit.messageHandlers.saveCredentialsHandler.postMessage({
-                                user: uInput.value,
-                                pass: pInput.value
-                            });
-                        }
-                    });
-                });
-
-                const submitButtons = document.querySelectorAll('button[type="submit"], input[type="submit"], button.btn');
-                submitButtons.forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const uInput = document.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
-                        const pInput = document.querySelector('input[type="password"]');
                         if (uInput && pInput && uInput.value && pInput.value) {
                             window.webkit.messageHandlers.saveCredentialsHandler.postMessage({
                                 user: uInput.value,
@@ -215,8 +193,6 @@ struct FullFeatureWebView: UIViewRepresentable {
         wv.uiDelegate = context.coordinator
         wv.allowsBackForwardNavigationGestures = true
         wv.scrollView.bounces = true
-        
-        // Samarkan User-Agent sebagai Safari iPhone resmi (Mencegah Blank Screen)
         wv.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
         context.coordinator.webView = wv
@@ -235,12 +211,12 @@ struct FullFeatureWebView: UIViewRepresentable {
     }
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, CLLocationManagerDelegate {
-        var parent: FullFeatureWebView
+        var parent: KurirWebView
         weak var webView: WKWebView?
         let locationManager = CLLocationManager()
         var latestLocation: CLLocation?
 
-        init(_ parent: FullFeatureWebView) {
+        init(_ parent: KurirWebView) {
             self.parent = parent
             super.init()
         }
@@ -248,17 +224,10 @@ struct FullFeatureWebView: UIViewRepresentable {
         func setupLocationManager() {
             locationManager.delegate = self
             locationManager.desiredAccuracy = kCLLocationAccuracyBest
-            
             if locationManager.authorizationStatus == .notDetermined {
                 locationManager.requestWhenInUseAuthorization()
             }
             locationManager.startUpdatingLocation()
-        }
-
-        func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-            if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
-                manager.startUpdatingLocation()
-            }
         }
 
         func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -278,8 +247,8 @@ struct FullFeatureWebView: UIViewRepresentable {
             if message.name == "saveCredentialsHandler",
                let dict = message.body as? [String: String],
                let user = dict["user"], let pass = dict["pass"] {
-                UserDefaults.standard.set(user, forKey: "saved_popsipgn_user")
-                UserDefaults.standard.set(pass, forKey: "saved_popsipgn_pass")
+                UserDefaults.standard.set(user, forKey: "saved_kurirmbg_user")
+                UserDefaults.standard.set(pass, forKey: "saved_kurirmbg_pass")
             } else if message.name == "requestLocationUpdate" {
                 if let loc = self.latestLocation {
                     sendLocationToJS(loc)
@@ -289,7 +258,6 @@ struct FullFeatureWebView: UIViewRepresentable {
             }
         }
 
-        // Tangani bypass sertifikat SSL handshake pemerintah jika diperlukan
         func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
             if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
                let serverTrust = challenge.protectionSpace.serverTrust {
@@ -302,19 +270,6 @@ struct FullFeatureWebView: UIViewRepresentable {
         @available(iOS 15.0, *)
         func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
             decisionHandler(.grant)
-        }
-
-        func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
-            let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in completionHandler() }))
-            UIApplication.shared.windows.first?.rootViewController?.present(alert, animated: true)
-        }
-
-        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
-            let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "Batal", style: .cancel, handler: { _ in completionHandler(false) }))
-            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in completionHandler(true) }))
-            UIApplication.shared.windows.first?.rootViewController?.present(alert, animated: true)
         }
     }
 }
