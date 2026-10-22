@@ -24,7 +24,6 @@ struct ContentView: View {
 }
 
 struct KurirWebView: UIViewRepresentable {
-    // URL Target khusus portal Kurir MBG SIPGN
     let targetURL = URL(string: "https://kurirmbg-sipgn.bgn.go.id/auth/login")!
 
     func makeUIView(context: Context) -> WKWebView {
@@ -39,29 +38,76 @@ struct KurirWebView: UIViewRepresentable {
 
         let contentController = WKUserContentController()
 
-        // 1. Skrip untuk memastikan tombol upload/kamera web membuka galeri foto
-        let unlockGalleryScript = WKUserScript(
+        // 1. Skrip Bypass WebRTC Camera Stream -> Membuka Galeri & Memasukkan Gambar ke Canvas
+        let webrtcGalleryBypassScript = WKUserScript(
             source: """
-            function unlockGallery() {
-                try {
-                    const inputs = document.querySelectorAll('input[type="file"]');
-                    inputs.forEach(input => input.removeAttribute('capture'));
-                } catch (e) {}
-            }
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', unlockGallery);
-            } else {
-                unlockGallery();
-            }
-            const observer = new MutationObserver(() => unlockGallery());
-            observer.observe(document.documentElement, { childList: true, subtree: true });
+            (function() {
+                // Hapus atribut capture pada semua input file biasa jika ada
+                function removeCapture() {
+                    document.querySelectorAll('input[type="file"]').forEach(el => {
+                        el.removeAttribute('capture');
+                    });
+                }
+                document.addEventListener('DOMContentLoaded', removeCapture);
+                new MutationObserver(removeCapture).observe(document.documentElement, { childList: true, subtree: true });
+
+                // Hook navigator.mediaDevices.getUserMedia (Sistem Kamera WebRTC)
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia = function(constraints) {
+                        return new Promise((resolve, reject) => {
+                            // Buat input file sementara untuk memilih foto dari galeri
+                            let fileInput = document.createElement('input');
+                            fileInput.type = 'file';
+                            fileInput.accept = 'image/*';
+                            fileInput.style.display = 'none';
+                            document.body.appendChild(fileInput);
+
+                            fileInput.onchange = function(e) {
+                                let file = e.target.files[0];
+                                if (!file) {
+                                    reject(new DOMException("User cancelled photo selection", "NotAllowedError"));
+                                    fileInput.remove();
+                                    return;
+                                }
+
+                                let reader = new FileReader();
+                                reader.onload = function(event) {
+                                    let img = new Image();
+                                    img.onload = function() {
+                                        // Gambar foto galeri ke canvas untuk dijadikan video stream palsu
+                                        let canvas = document.createElement('canvas');
+                                        canvas.width = img.width || 1280;
+                                        canvas.height = img.height || 720;
+                                        let ctx = canvas.getContext('2d');
+                                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                                        // Buat loop render agar stream dianggap aktif oleh webview
+                                        setInterval(() => {
+                                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                        }, 100);
+
+                                        let stream = canvas.captureStream(25);
+                                        resolve(stream);
+                                        fileInput.remove();
+                                    };
+                                    img.src = event.target.result;
+                                };
+                                reader.readAsDataURL(file);
+                            };
+
+                            // Buka jendela pemilihan foto/galeri iOS
+                            fileInput.click();
+                        });
+                    };
+                }
+            })();
             """,
-            injectionTime: .atDocumentEnd,
+            injectionTime: .atDocumentStart,
             forMainFrameOnly: false
         )
-        contentController.addUserScript(unlockGalleryScript)
+        contentController.addUserScript(webrtcGalleryBypassScript)
 
-        // 2. Jembatan GPS Geolocation native iPhone ke Web Kurir
+        // 2. Jembatan GPS Geolocation
         let geoBridgeScript = WKUserScript(
             source: """
             window.__currentLat = null;
@@ -131,7 +177,7 @@ struct KurirWebView: UIViewRepresentable {
         )
         contentController.addUserScript(geoBridgeScript)
 
-        // 3. Auto-Fill & Simpan Kredensial Login Kurir
+        // 3. Simpan Kredensial Login
         let savedUser = UserDefaults.standard.string(forKey: "saved_kurirmbg_user") ?? ""
         let savedPass = UserDefaults.standard.string(forKey: "saved_kurirmbg_pass") ?? ""
         
@@ -158,8 +204,7 @@ struct KurirWebView: UIViewRepresentable {
             }
 
             function setupLoginInterceptor() {
-                const forms = document.querySelectorAll('form');
-                forms.forEach(form => {
+                document.querySelectorAll('form').forEach(form => {
                     form.addEventListener('submit', function() {
                         const uInput = form.querySelector('input[type="text"], input[type="email"], input[name*="user"], input[name*="email"]');
                         const pInput = form.querySelector('input[type="password"]');
@@ -183,7 +228,7 @@ struct KurirWebView: UIViewRepresentable {
             forMainFrameOnly: false
         )
         contentController.addUserScript(credentialsScript)
-        
+
         contentController.add(context.coordinator, name: "saveCredentialsHandler")
         contentController.add(context.coordinator, name: "requestLocationUpdate")
         config.userContentController = contentController
@@ -267,6 +312,7 @@ struct KurirWebView: UIViewRepresentable {
             }
         }
 
+        // Izin media WebKit untuk Camera & Microphone
         @available(iOS 15.0, *)
         func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
             decisionHandler(.grant)
