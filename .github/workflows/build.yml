@@ -12,21 +12,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode 16
+      - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.2.app || sudo xcode-select -s /Applications/Xcode_16.1.app || sudo xcode-select -s /Applications/Xcode_16.app
+          sudo xcode-select -s /Applications/Xcode.app
           xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: 🚀 AUTO-GENERATE APPLE NATIVE FULL SCREEN & PERMISSIONS 🚀
+      - name: 🚀 AUTO-GENERATE PROJECT & PLIST 🚀
         run: |
-          # 1. Bersihkan file lama
           rm -f ibaal-cert-store/Info.plist
           rm -f ibaal-cert-store/LaunchScreen.storyboard
           
-          # 2. Buat Asset Catalog untuk AppIcon
           mkdir -p ibaal-cert-store/Assets.xcassets/AppIcon.appiconset
           cat << 'EOF' > ibaal-cert-store/Assets.xcassets/AppIcon.appiconset/Contents.json
           {
@@ -35,7 +33,6 @@ jobs:
           }
           EOF
           
-          # 3. Konfigurasi project.yml
           cat << 'EOF' > project.yml
           name: ibaal-cert-store
           options:
@@ -54,7 +51,7 @@ jobs:
                 path: ibaal-cert-store/Info.plist
               settings:
                 base:
-                  PRODUCT_NAME: "POP SIPGN"
+                  PRODUCT_NAME: "ibaal-cert-store"
                   PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.popsipgn"
                   TARGETED_DEVICE_FAMILY: "1"
                   SWIFT_VERSION: "5.0"
@@ -71,7 +68,6 @@ jobs:
                   INFOPLIST_KEY_UIViewControllerBasedStatusBarAppearance: "NO"
           EOF
           
-          # 4. Info.plist dengan bypass ATS, izin Galeri, Kamera, dan Lokasi GPS
           cat << 'EOF' > ibaal-cert-store/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
