@@ -185,12 +185,13 @@ class CertStorageManager {
     }
 }
 
-// MARK: - Jenis Sumber Cert
+// MARK: - Jenis Sumber Cert (Disesuaikan dengan format JSON lama agar bisa restore)
 enum CertSourceType: String, Codable, CaseIterable {
-    case reguler = "Kloter Reguler (Dinamis 5 / 20 Slot)"
+    case reguler = "Kloter Reguler (5 Slot)"
     case manual = "Manual / Eceran"
     case trollstore = "TrollStore (Modal Rp 0)"
 }
+
 
 // MARK: - Model Data Penjualan
 struct SaleItem: Identifiable, Codable, Hashable {
