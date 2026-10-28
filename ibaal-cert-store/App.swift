@@ -187,7 +187,7 @@ class CertStorageManager {
 
 // MARK: - Jenis Sumber Cert
 enum CertSourceType: String, Codable, CaseIterable {
-    case reguler = "Kloter Reguler (20 Slot)"
+    case reguler = "Kloter Reguler (Dinamis 5 / 20 Slot)"
     case manual = "Manual / Eceran"
     case trollstore = "TrollStore (Modal Rp 0)"
 }
@@ -499,16 +499,36 @@ struct ContentView: View {
 
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    // LOGIKA KAPASITAS KLOTER DINAMIS (Kloter 1-11 = 5 slot, Kloter 12+ = 20 slot)
+    func capacityForBatch(_ batchNum: Int) -> Int {
+        return batchNum >= 12 ? 20 : 5
+    }
+
     var activeBatchNumber: Int {
-        let regularItems = items.filter { $0.currentSourceType == .reguler }
-        return regularItems.isEmpty ? 1 : ((regularItems.count - 1) / 20 + 1)
+        let regularItems = items.filter { $0.currentSourceType == .reguler }.sorted { $0.tanggalDaftar < $1.tanggalDaftar }
+        if regularItems.isEmpty { return 1 }
+        
+        var currentBatch = 1
+        var countInBatch = 0
+        
+        for _ in regularItems {
+            let limit = capacityForBatch(currentBatch)
+            countInBatch += 1
+            if countInBatch > limit {
+                currentBatch += 1
+                countInBatch = 1
+            }
+        }
+        return currentBatch
     }
 
     var activeBatchItems: [SaleItem] {
         items.filter { $0.batchNumber == activeBatchNumber && $0.currentSourceType == .reguler }
     }
+    
+    var slotMaxAktif: Int { capacityForBatch(activeBatchNumber) }
     var slotTerjualDiBatchAktif: Int { activeBatchItems.count }
-    var sisaSlotDiBatchAktif: Int { max(0, 20 - slotTerjualDiBatchAktif) }
+    var sisaSlotDiBatchAktif: Int { max(0, slotMaxAktif - slotTerjualDiBatchAktif) }
 
     var modalKloterAktif: Int { BatchModalManager.shared.getModal(for: activeBatchNumber) }
     var feeAdminKloterAktif: Int { BatchAdminFeeManager.shared.getFee(for: activeBatchNumber) }
@@ -522,8 +542,21 @@ struct ContentView: View {
     }
     
     var completedBatchesCount: Int {
-        let regularItems = items.filter { $0.currentSourceType == .reguler }
-        return regularItems.count / 20
+        let regularItems = items.filter { $0.currentSourceType == .reguler }.sorted { $0.tanggalDaftar < $1.tanggalDaftar }
+        var currentBatch = 1
+        var countInBatch = 0
+        var finishedCount = 0
+        
+        for _ in regularItems {
+            let limit = capacityForBatch(currentBatch)
+            countInBatch += 1
+            if countInBatch >= limit {
+                finishedCount += 1
+                currentBatch += 1
+                countInBatch = 0
+            }
+        }
+        return finishedCount
     }
     
     var totalOmsetSemua: Int { items.reduce(0) { $0 + $1.hargaJual } }
@@ -877,6 +910,7 @@ struct ContentView: View {
         let isExpanded = isBatchExpanded(batch)
         let isManualOrTroll = (batch == 9999)
         let isCurrent = (batch == activeBatchNumber)
+        let maxS = capacityForBatch(batch)
 
         return Button {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
@@ -906,9 +940,9 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text(isManualOrTroll ? "\(count) Device" : "\(count)/20 Cert")
+                Text(isManualOrTroll ? "\(count) Device" : "\(count)/\(maxS) Cert")
                     .font(.mali(12))
-                    .foregroundColor(isManualOrTroll ? .orange : (count >= 20 ? .green : .gray))
+                    .foregroundColor(isManualOrTroll ? .orange : (count >= maxS ? .green : .gray))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -975,10 +1009,10 @@ struct ContentView: View {
                 HStack {
                     HStack(spacing: 5) {
                         Image(systemName: "cube.box.fill")
-                        Text("\(slotTerjualDiBatchAktif)/20 Slot Terjual")
+                        Text("\(slotTerjualDiBatchAktif)/\(slotMaxAktif) Slot Terjual")
                             .font(.mali(12))
                     }
-                    .foregroundColor(slotTerjualDiBatchAktif >= 20 ? .green : .white)
+                    .foregroundColor(slotTerjualDiBatchAktif >= slotMaxAktif ? .green : .white)
                     Spacer()
                 }
 
@@ -988,14 +1022,14 @@ struct ContentView: View {
                             .fill(Color.white.opacity(0.1))
                             .frame(height: 6)
                         RoundedRectangle(cornerRadius: 3)
-                            .fill(slotTerjualDiBatchAktif >= 20 ? Color.green : Color.cyan)
-                            .frame(width: min(geo.size.width * CGFloat(slotTerjualDiBatchAktif) / 20.0, geo.size.width), height: 6)
+                            .fill(slotTerjualDiBatchAktif >= slotMaxAktif ? Color.green : Color.cyan)
+                            .frame(width: min(geo.size.width * CGFloat(slotTerjualDiBatchAktif) / CGFloat(slotMaxAktif), geo.size.width), height: 6)
                     }
                 }
                 .frame(height: 6)
 
                 HStack {
-                    Text(slotTerjualDiBatchAktif >= 20 ? "20/20 Penuh! Kloter reguler berikutnya terbuka otomatis." : "Tersisa \(sisaSlotDiBatchAktif) slot di kloter reguler ini.")
+                    Text(slotTerjualDiBatchAktif >= slotMaxAktif ? "\(slotMaxAktif)/\(slotMaxAktif) Penuh! Kloter reguler berikutnya terbuka otomatis." : "Tersisa \(sisaSlotDiBatchAktif) slot di kloter reguler ini.")
                         .font(.mali(10))
                         .foregroundColor(.gray)
                     Spacer()
@@ -1363,7 +1397,6 @@ struct ContentView: View {
         }
     }
 
-    // PENANGANAN RESTORE / IMPORT YANG FLEKSIBEL (UNIVERSAL DECODER)
     private func handleImportBackup(result: Result<URL, Error>) {
         do {
             let fileURL = try result.get()
@@ -1372,7 +1405,6 @@ struct ContentView: View {
 
             let data = try Data(contentsOf: fileURL)
             
-            // 1. Coba decode sebagai payload lengkap terbaru
             if let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) {
                 items = payload.items
                 if let modals = payload.batchModals {
@@ -1383,9 +1415,7 @@ struct ContentView: View {
                 }
                 recalculateAndSave()
                 alertMessage = "Sukses memulihkan \(payload.items.count) transaksi & Data Modal Kloter."
-            } 
-            // 2. Coba decode sebagai array item mentah (format lama)
-            else if let im = try? JSONDecoder().decode([SaleItem].self, from: data) {
+            } else if let im = try? JSONDecoder().decode([SaleItem].self, from: data) {
                 items = im
                 recalculateAndSave()
                 alertMessage = "Sukses memulihkan \(im.count) transaksi (Format Lama)."
@@ -1409,13 +1439,26 @@ struct ContentView: View {
         forceRefresh = UUID()
     }
 
+    // REKALKULASI KLOTER DINAMIS (Kloter 1-11 = 5 slot, Kloter 12+ = 20 slot)
     private func recalculateAndSave() {
         let regularItemsAscending = items.filter { $0.currentSourceType == .reguler }.sorted { $0.tanggalDaftar < $1.tanggalDaftar }
         var updatedRegular: [SaleItem] = []
 
-        for (index, item) in regularItemsAscending.enumerated() {
+        var currentBatch = 1
+        var countInBatch = 0
+
+        for item in regularItemsAscending {
+            let limit = capacityForBatch(currentBatch)
+            
+            if countInBatch >= limit {
+                currentBatch += 1
+                countInBatch = 1
+            } else {
+                countInBatch += 1
+            }
+            
             var updated = item
-            updated.batchNumber = (index / 20) + 1
+            updated.batchNumber = currentBatch
             updatedRegular.append(updated)
         }
 
@@ -1901,15 +1944,36 @@ struct BatchHistorySheet: View {
     @State private var forceRefresh = UUID()
     @State private var batchToEdit: EditableBatch? = nil
 
+    // Helper kapasitas untuk arsip
+    func capacityForBatch(_ batchNum: Int) -> Int {
+        return batchNum >= 12 ? 20 : 5
+    }
+
     var completedBatches: [Int] {
-        let regularItems = allItems.filter { $0.currentSourceType == .reguler }
-        let count = regularItems.count / 20
-        var list = count > 0 ? Array((1...count).reversed()) : []
+        let regularItems = allItems.filter { $0.currentSourceType == .reguler }.sorted { $0.tanggalDaftar < $1.tanggalDaftar }
+        var currentBatch = 1
+        var countInBatch = 0
+        var finishedBatches: [Int] = []
+        
+        for _ in regularItems {
+            let limit = capacityForBatch(currentBatch)
+            countInBatch += 1
+            if countInBatch >= limit {
+                if !finishedBatches.contains(currentBatch) {
+                    finishedBatches.append(currentBatch)
+                }
+                currentBatch += 1
+                countInBatch = 0
+            }
+        }
+        
+        var list = finishedBatches.reversed()
+        var resultList = Array(list)
         
         if allItems.contains(where: { $0.currentSourceType != .reguler }) {
-            list.insert(9999, at: 0)
+            resultList.insert(9999, at: 0)
         }
-        return list
+        return resultList
     }
 
     var totalUntung: Int {
@@ -1956,6 +2020,7 @@ struct BatchHistorySheet: View {
                             let uangMasuk = bItems.reduce(0) { $0 + $1.nominalDibayar }
                             let piutang = bItems.reduce(0) { $0 + $1.sisaPembayaran }
                             
+                            let maxS = isManualOrTroll ? bItems.count : capacityForBatch(b)
                             let modal = isManualOrTroll ? bItems.reduce(0) { $0 + $1.nominalModalPerItem } : BatchModalManager.shared.getModal(for: b)
                             let fee = isManualOrTroll ? 0 : BatchAdminFeeManager.shared.getFee(for: b)
                             let keuntunganBersih = isManualOrTroll ? (uangMasuk - modal) : ((uangMasuk - modal) - fee)
@@ -1982,7 +2047,7 @@ struct BatchHistorySheet: View {
                                     }
 
                                     Spacer()
-                                    Text(isManualOrTroll ? "\(bItems.count) Device" : "20/20 Selesai ✅")
+                                    Text(isManualOrTroll ? "\(bItems.count) Device" : "\(bItems.count)/\(maxS) Selesai ✅")
                                         .font(.mali(10))
                                         .foregroundColor(isManualOrTroll ? .orange : .green)
                                 }
