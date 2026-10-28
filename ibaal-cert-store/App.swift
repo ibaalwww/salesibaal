@@ -271,11 +271,11 @@ struct SaleItem: Identifiable, Codable, Hashable {
     }
 }
 
-// MARK: - Struktur Data Cadangan (Menyertakan Modal & Fee Kloter)
+// MARK: - Struktur Data Cadangan Universal
 struct BackupPayload: Codable {
     var items: [SaleItem]
-    var batchModals: [String: Int]
-    var batchAdminFees: [String: Int]
+    var batchModals: [String: Int]?
+    var batchAdminFees: [String: Int]?
 }
 
 enum FilterGaransi: String, CaseIterable, Identifiable {
@@ -499,7 +499,6 @@ struct ContentView: View {
 
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    // Kapasitas kloter diubah dari 5 ke 20 slot
     var activeBatchNumber: Int {
         let regularItems = items.filter { $0.currentSourceType == .reguler }
         return regularItems.isEmpty ? 1 : ((regularItems.count - 1) / 20 + 1)
@@ -1364,6 +1363,7 @@ struct ContentView: View {
         }
     }
 
+    // PENANGANAN RESTORE / IMPORT YANG FLEKSIBEL (UNIVERSAL DECODER)
     private func handleImportBackup(result: Result<URL, Error>) {
         do {
             let fileURL = try result.get()
@@ -1372,24 +1372,31 @@ struct ContentView: View {
 
             let data = try Data(contentsOf: fileURL)
             
+            // 1. Coba decode sebagai payload lengkap terbaru
             if let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) {
                 items = payload.items
-                BatchModalManager.shared.importAll(payload.batchModals)
-                BatchAdminFeeManager.shared.importAll(payload.batchAdminFees)
+                if let modals = payload.batchModals {
+                    BatchModalManager.shared.importAll(modals)
+                }
+                if let fees = payload.batchAdminFees {
+                    BatchAdminFeeManager.shared.importAll(fees)
+                }
                 recalculateAndSave()
                 alertMessage = "Sukses memulihkan \(payload.items.count) transaksi & Data Modal Kloter."
-            } else if let im = try? JSONDecoder().decode([SaleItem].self, from: data) {
+            } 
+            // 2. Coba decode sebagai array item mentah (format lama)
+            else if let im = try? JSONDecoder().decode([SaleItem].self, from: data) {
                 items = im
                 recalculateAndSave()
-                alertMessage = "Sukses memulihkan \(im.count) transaksi."
+                alertMessage = "Sukses memulihkan \(im.count) transaksi (Format Lama)."
             } else {
-                throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid format"])
+                throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Format berkas tidak dikenali"])
             }
             
             forceRefresh = UUID()
             showAlert = true
         } catch {
-            alertMessage = "Gagal memulihkan berkas JSON."
+            alertMessage = "Gagal memulihkan berkas JSON: \(error.localizedDescription)"
             showAlert = true
         }
     }
@@ -1402,7 +1409,6 @@ struct ContentView: View {
         forceRefresh = UUID()
     }
 
-    // Kalkulasi kloter reguler berdasarkan kapasitas baru 20 slot per batch
     private func recalculateAndSave() {
         let regularItemsAscending = items.filter { $0.currentSourceType == .reguler }.sorted { $0.tanggalDaftar < $1.tanggalDaftar }
         var updatedRegular: [SaleItem] = []
