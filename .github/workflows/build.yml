@@ -12,9 +12,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Select Latest Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode.app
+          # Cari dan pilih versi Xcode terbaru yang tersedia di runner macos-14
+          sudo xcode-select -s /Applications/Xcode_$(ls /Applications | grep "Xcode_" | sed 's/Xcode_//g' | sed 's/\.app//g' | sort -V | tail -n 1).app || sudo xcode-select -s /Applications/Xcode.app
           xcodebuild -version
 
       - name: Install XcodeGen
@@ -39,7 +40,6 @@ jobs:
             bundleIdPrefix: com.ibaal
             deploymentTarget:
               iOS: "15.0"
-            compatibilityVersion: "Xcode 14.0"
             xcodeVersion: "15.0"
           targets:
             ibaal-cert-store:
