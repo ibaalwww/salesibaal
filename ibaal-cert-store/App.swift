@@ -105,6 +105,15 @@ class BatchModalManager {
         dict[String(batch)] = modal
         UserDefaults.standard.set(dict, forKey: key)
     }
+    
+    func exportAll() -> [String: Int] {
+        return UserDefaults.standard.dictionary(forKey: key) as? [String: Int] ?? [:]
+    }
+    
+    func importAll(_ dict: [String: Int]) {
+        UserDefaults.standard.set(dict, forKey: key)
+        UserDefaults.standard.synchronize()
+    }
 }
 
 // MARK: - Manajer Fee Admin Kloter
@@ -121,6 +130,15 @@ class BatchAdminFeeManager {
         var dict = UserDefaults.standard.dictionary(forKey: key) as? [String: Int] ?? [:]
         dict[String(batch)] = fee
         UserDefaults.standard.set(dict, forKey: key)
+    }
+    
+    func exportAll() -> [String: Int] {
+        return UserDefaults.standard.dictionary(forKey: key) as? [String: Int] ?? [:]
+    }
+    
+    func importAll(_ dict: [String: Int]) {
+        UserDefaults.standard.set(dict, forKey: key)
+        UserDefaults.standard.synchronize()
     }
 }
 
@@ -169,7 +187,7 @@ class CertStorageManager {
 
 // MARK: - Jenis Sumber Cert
 enum CertSourceType: String, Codable, CaseIterable {
-    case reguler = "Kloter Reguler (5 Slot)"
+    case reguler = "Kloter Reguler (20 Slot)"
     case manual = "Manual / Eceran"
     case trollstore = "TrollStore (Modal Rp 0)"
 }
@@ -188,10 +206,8 @@ struct SaleItem: Identifiable, Codable, Hashable {
     var zipFileName: String? = nil
     var certPassword: String? = nil
     
-    // Fitur DP / Kasbon
     var telahDibayar: Int? = nil
 
-    // Fitur Sumber & Modal Custom
     var sourceType: CertSourceType? = .reguler
     var customModal: Int? = 0
 
@@ -201,9 +217,9 @@ struct SaleItem: Identifiable, Codable, Hashable {
 
     var nominalModalPerItem: Int {
         switch currentSourceType {
-        case .reguler: return 0 // Modal dihitung secara akumulasi per batch
+        case .reguler: return 0
         case .manual: return customModal ?? 0
-        case .trollstore: return 0 // Untung 100% modal 0
+        case .trollstore: return 0
         }
     }
 
@@ -255,7 +271,7 @@ struct SaleItem: Identifiable, Codable, Hashable {
     }
 }
 
-// MARK: - Struktur Data Cadangan
+// MARK: - Struktur Data Cadangan (Menyertakan Modal & Fee Kloter)
 struct BackupPayload: Codable {
     var items: [SaleItem]
     var batchModals: [String: Int]
@@ -483,16 +499,17 @@ struct ContentView: View {
 
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    // Kapasitas kloter diubah dari 5 ke 20 slot
     var activeBatchNumber: Int {
         let regularItems = items.filter { $0.currentSourceType == .reguler }
-        return regularItems.isEmpty ? 1 : ((regularItems.count - 1) / 5 + 1)
+        return regularItems.isEmpty ? 1 : ((regularItems.count - 1) / 20 + 1)
     }
 
     var activeBatchItems: [SaleItem] {
         items.filter { $0.batchNumber == activeBatchNumber && $0.currentSourceType == .reguler }
     }
     var slotTerjualDiBatchAktif: Int { activeBatchItems.count }
-    var sisaSlotDiBatchAktif: Int { max(0, 5 - slotTerjualDiBatchAktif) }
+    var sisaSlotDiBatchAktif: Int { max(0, 20 - slotTerjualDiBatchAktif) }
 
     var modalKloterAktif: Int { BatchModalManager.shared.getModal(for: activeBatchNumber) }
     var feeAdminKloterAktif: Int { BatchAdminFeeManager.shared.getFee(for: activeBatchNumber) }
@@ -507,7 +524,7 @@ struct ContentView: View {
     
     var completedBatchesCount: Int {
         let regularItems = items.filter { $0.currentSourceType == .reguler }
-        return regularItems.count / 5
+        return regularItems.count / 20
     }
     
     var totalOmsetSemua: Int { items.reduce(0) { $0 + $1.hargaJual } }
@@ -537,7 +554,6 @@ struct ContentView: View {
         }
     }
 
-    // Urutkan kloter reguler (angka) dan letakkan batch manual (9999) di atas
     var batchesInFiltered: [Int] {
         Array(Set(filteredItems.map { $0.batchNumber })).sorted(by: >)
     }
@@ -621,7 +637,6 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-            // Menu Dropdown 3 Titik
             if showOptionsMenu {
                 Color.black.opacity(0.45)
                     .ignoresSafeArea()
@@ -892,9 +907,9 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text(isManualOrTroll ? "\(count) Device" : "\(count)/5 Cert")
+                Text(isManualOrTroll ? "\(count) Device" : "\(count)/20 Cert")
                     .font(.mali(12))
-                    .foregroundColor(isManualOrTroll ? .orange : (count >= 5 ? .green : .gray))
+                    .foregroundColor(isManualOrTroll ? .orange : (count >= 20 ? .green : .gray))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -961,10 +976,10 @@ struct ContentView: View {
                 HStack {
                     HStack(spacing: 5) {
                         Image(systemName: "cube.box.fill")
-                        Text("\(slotTerjualDiBatchAktif)/5 Slot Terjual")
+                        Text("\(slotTerjualDiBatchAktif)/20 Slot Terjual")
                             .font(.mali(12))
                     }
-                    .foregroundColor(slotTerjualDiBatchAktif >= 5 ? .green : .white)
+                    .foregroundColor(slotTerjualDiBatchAktif >= 20 ? .green : .white)
                     Spacer()
                 }
 
@@ -974,14 +989,14 @@ struct ContentView: View {
                             .fill(Color.white.opacity(0.1))
                             .frame(height: 6)
                         RoundedRectangle(cornerRadius: 3)
-                            .fill(slotTerjualDiBatchAktif >= 5 ? Color.green : Color.cyan)
-                            .frame(width: min(geo.size.width * CGFloat(slotTerjualDiBatchAktif) / 5.0, geo.size.width), height: 6)
+                            .fill(slotTerjualDiBatchAktif >= 20 ? Color.green : Color.cyan)
+                            .frame(width: min(geo.size.width * CGFloat(slotTerjualDiBatchAktif) / 20.0, geo.size.width), height: 6)
                     }
                 }
                 .frame(height: 6)
 
                 HStack {
-                    Text(slotTerjualDiBatchAktif >= 5 ? "5/5 Penuh! Kloter reguler berikutnya terbuka otomatis." : "Tersisa \(sisaSlotDiBatchAktif) slot di kloter reguler ini.")
+                    Text(slotTerjualDiBatchAktif >= 20 ? "20/20 Penuh! Kloter reguler berikutnya terbuka otomatis." : "Tersisa \(sisaSlotDiBatchAktif) slot di kloter reguler ini.")
                         .font(.mali(10))
                         .foregroundColor(.gray)
                     Spacer()
@@ -1046,7 +1061,6 @@ struct ContentView: View {
                     .cornerRadius(8)
                 }
 
-                // Tag Sumber Pembelian (TrollStore, Manual, atau Reguler)
                 if item.currentSourceType == .trollstore {
                     Text("TrollStore 🚀")
                         .font(.mali(9))
@@ -1327,8 +1341,8 @@ struct ContentView: View {
 
     private func exportBackup() {
         do {
-            let modals = UserDefaults.standard.dictionary(forKey: "saved_batch_modals") as? [String: Int] ?? [:]
-            let fees = UserDefaults.standard.dictionary(forKey: "saved_batch_admin_fees") as? [String: Int] ?? [:]
+            let modals = BatchModalManager.shared.exportAll()
+            let fees = BatchAdminFeeManager.shared.exportAll()
             
             let payload = BackupPayload(items: items, batchModals: modals, batchAdminFees: fees)
             
@@ -1360,12 +1374,10 @@ struct ContentView: View {
             
             if let payload = try? JSONDecoder().decode(BackupPayload.self, from: data) {
                 items = payload.items
-                let def = UserDefaults.standard
-                def.set(payload.batchModals, forKey: "saved_batch_modals")
-                def.set(payload.batchAdminFees, forKey: "saved_batch_admin_fees")
-                def.synchronize()
+                BatchModalManager.shared.importAll(payload.batchModals)
+                BatchAdminFeeManager.shared.importAll(payload.batchAdminFees)
                 recalculateAndSave()
-                alertMessage = "Sukses memulihkan \(payload.items.count) transaksi & Data Modal."
+                alertMessage = "Sukses memulihkan \(payload.items.count) transaksi & Data Modal Kloter."
             } else if let im = try? JSONDecoder().decode([SaleItem].self, from: data) {
                 items = im
                 recalculateAndSave()
@@ -1390,20 +1402,20 @@ struct ContentView: View {
         forceRefresh = UUID()
     }
 
-    // Urutkan kloter reguler saja (isi 5). Untuk manual dan TrollStore disatukan ke kloter khusus (batch 9999).
+    // Kalkulasi kloter reguler berdasarkan kapasitas baru 20 slot per batch
     private func recalculateAndSave() {
         let regularItemsAscending = items.filter { $0.currentSourceType == .reguler }.sorted { $0.tanggalDaftar < $1.tanggalDaftar }
         var updatedRegular: [SaleItem] = []
 
         for (index, item) in regularItemsAscending.enumerated() {
             var updated = item
-            updated.batchNumber = (index / 5) + 1
+            updated.batchNumber = (index / 20) + 1
             updatedRegular.append(updated)
         }
 
         let nonRegularItems = items.filter { $0.currentSourceType != .reguler }.map { item -> SaleItem in
             var updated = item
-            updated.batchNumber = 9999 // Kloter khusus Manual & TrollStore
+            updated.batchNumber = 9999
             return updated
         }
 
@@ -1429,7 +1441,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Formulir Tambah / Edit Penjualan (Dengan Opsi Manual & TrollStore)
+// MARK: - Formulir Tambah / Edit Penjualan
 struct SaleFormSheet: View {
     @Environment(\.dismiss) var dismiss
 
@@ -1448,7 +1460,6 @@ struct SaleFormSheet: View {
     @State private var isLunas = true
     @State private var telahDibayarText = ""
     
-    // State Sumber Cert & Modal
     @State private var selectedSourceType: CertSourceType = .reguler
     @State private var customModalText = "0"
     
@@ -1480,7 +1491,6 @@ struct SaleFormSheet: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         
-                        // KARTU METODE / SUMBER PENDAFTARAN
                         VStack(alignment: .leading, spacing: 6) {
                             Text("SUMBER PENDAFTARAN CERT").font(.mali(12)).foregroundColor(.cyan)
 
@@ -1764,7 +1774,6 @@ struct SaleFormSheet: View {
         let finalDibayar = isLunas ? finalHarga : (Int(telahDibayarText) ?? 0)
         let parsedCustomModal = (selectedSourceType == .manual) ? (Int(customModalText) ?? 0) : 0
         
-        // Tetapkan batchNumber: jika bukan reguler, kelompokkan ke kloter manual/troll (9999)
         let targetBatch = (selectedSourceType == .reguler) ? batchNumber : 9999
 
         let finalItem = SaleItem(
@@ -1872,12 +1881,11 @@ struct EditBatchModalSheet: View {
     }
 }
 
-// MARK: - Helper Identifiable untuk Sheet Edit Arsip
 struct EditableBatch: Identifiable {
     let id: Int
 }
 
-// MARK: - Arsip Kloter Selesai (Termasuk Kloter Reguler & Kloter Manual/TrollStore)
+// MARK: - Arsip Kloter Selesai
 struct BatchHistorySheet: View {
     @Environment(\.dismiss) var dismiss
     var allItems: [SaleItem]
@@ -1889,10 +1897,9 @@ struct BatchHistorySheet: View {
 
     var completedBatches: [Int] {
         let regularItems = allItems.filter { $0.currentSourceType == .reguler }
-        let count = regularItems.count / 5
+        let count = regularItems.count / 20
         var list = count > 0 ? Array((1...count).reversed()) : []
         
-        // Jika ada transaksi manual atau TrollStore, tampilkan juga kartu khusus di arsip
         if allItems.contains(where: { $0.currentSourceType != .reguler }) {
             list.insert(9999, at: 0)
         }
@@ -1906,7 +1913,6 @@ struct BatchHistorySheet: View {
             let uangMasuk = bItems.reduce(0) { $0 + $1.nominalDibayar }
             
             if b == 9999 {
-                // Untuk kloter manual & TrollStore: uang masuk dikurangi modal masing-masing per item
                 let modalManualPerItem = bItems.reduce(0) { $0 + $1.nominalModalPerItem }
                 total += (uangMasuk - modalManualPerItem)
             } else {
@@ -1970,7 +1976,7 @@ struct BatchHistorySheet: View {
                                     }
 
                                     Spacer()
-                                    Text(isManualOrTroll ? "\(bItems.count) Device" : "5/5 Selesai ✅")
+                                    Text(isManualOrTroll ? "\(bItems.count) Device" : "20/20 Selesai ✅")
                                         .font(.mali(10))
                                         .foregroundColor(isManualOrTroll ? .orange : .green)
                                 }
@@ -2011,7 +2017,6 @@ struct BatchHistorySheet: View {
                                 }
                                 .padding(.vertical, 4)
                                 
-                                // DAFTAR PEMBELI
                                 VStack(spacing: 5) {
                                     HStack {
                                         Text("ANGGOTA KLOTER (Ketuk untuk Edit Cicilan/Data)")
