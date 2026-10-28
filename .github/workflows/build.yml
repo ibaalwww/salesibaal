@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -32,7 +32,6 @@ jobs:
           name: ibaal-cert-store
           options:
             bundleIdPrefix: com.ibaal
-            xcodeVersion: "15.4"
             deploymentTarget:
               iOS: "15.0"
           targets:
