@@ -1,4 +1,4 @@
-name: Build App IPA
+name: Build NFSMWO IPA
 
 on:
   push:
@@ -15,106 +15,31 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: 🚀 AUTO-GENERATE PROJECT & PLIST 🚀
-        run: |
-          rm -f ibaal-cert-store/Info.plist
-          rm -f ibaal-cert-store/LaunchScreen.storyboard
-          
-          mkdir -p ibaal-cert-store/Assets.xcassets/AppIcon.appiconset
-          cat << 'EOF' > ibaal-cert-store/Assets.xcassets/AppIcon.appiconset/Contents.json
-          {
-            "images": [],
-            "info": { "author": "xcode", "version": 1 }
-          }
-          EOF
-          
-          cat << 'EOF' > project.yml
-          name: ibaal-cert-store
-          options:
-            bundleIdPrefix: com.ibaal
-            deploymentTarget:
-              iOS: "15.0"
-          targets:
-            ibaal-cert-store:
-              type: application
-              platform: iOS
-              deploymentTarget: "15.0"
-              sources:
-                - path: ibaal-cert-store
-              info:
-                path: ibaal-cert-store/Info.plist
-              settings:
-                base:
-                  PRODUCT_NAME: "ibaal-cert-store"
-                  PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.popsipgn"
-                  TARGETED_DEVICE_FAMILY: "1"
-                  SWIFT_VERSION: "5.0"
-                  CODE_SIGNING_REQUIRED: "NO"
-                  CODE_SIGN_IDENTITY: ""
-                  CODE_SIGNING_ALLOWED: "NO"
-                  ASSETCATALOG_COMPILER_APPICON_NAME: "AppIcon"
-                  GENERATE_INFOPLIST_FILE: "YES"
-                  CURRENT_PROJECT_VERSION: "1"
-                  MARKETING_VERSION: "1.0"
-                  INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-                  INFOPLIST_KEY_LSRequiresIPhoneOS: "YES"
-                  INFOPLIST_KEY_UIStatusBarStyle: "UIStatusBarStyleLightContent"
-                  INFOPLIST_KEY_UIViewControllerBasedStatusBarAppearance: "NO"
-          EOF
-          
-          cat << 'EOF' > ibaal-cert-store/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>UIAppFonts</key>
-              <array>
-                  <string>Mali-Bold.ttf</string>
-              </array>
-              <key>NSAppTransportSecurity</key>
-              <dict>
-                  <key>NSAllowsArbitraryLoads</key>
-                  <true/>
-              </dict>
-              <key>NSCameraUsageDescription</key>
-              <string>Aplikasi memerlukan izin kamera untuk presensi dan bukti foto.</string>
-              <key>NSPhotoLibraryUsageDescription</key>
-              <string>Aplikasi memerlukan izin galeri untuk memilih foto dokumen atau kegiatan.</string>
-              <key>NSPhotoLibraryAddUsageDescription</key>
-              <string>Aplikasi memerlukan izin untuk menyimpan file atau foto.</string>
-              <key>NSLocationWhenInUseUsageDescription</key>
-              <string>Aplikasi memerlukan izin lokasi saat digunakan untuk validasi koordinat presensi SIPGN.</string>
-              <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-              <string>Aplikasi memerlukan akses lokasi akurat saat digunakan untuk absensi kehadiran.</string>
-          </dict>
-          </plist>
-          EOF
-
       - name: Generate Xcode Project
         run: xcodegen generate
 
-      - name: Build Application Archive
+      - name: Clean and Build Application
         run: |
-          xcodebuild -project ibaal-cert-store.xcodeproj \
-            -scheme ibaal-cert-store \
-            -configuration Release \
+          xcodebuild -project NFSMWOnline.xcodeproj \
+            -scheme NFSMWOnline \
+            -configuration Debug \
             -sdk iphoneos \
-            -archivePath build/ibaal-cert-store.xcarchive \
+            -derivedDataPath .build_output \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            archive
+            clean build
 
       - name: Package Payload into IPA
         run: |
           mkdir -p build/Payload
-          cp -r build/ibaal-cert-store.xcarchive/Products/Applications/*.app build/Payload/
+          cp -r .build_output/Build/Products/Debug-iphoneos/*.app build/Payload/
           cd build
-          zip -r pop-sipgn.ipa Payload
+          zip -r NFSMWOnline.ipa Payload
           cd ..
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pop-sipgn-IPA
-          path: build/pop-sipgn.ipa
+          name: NFSMWOnline-IPA
+          path: build/NFSMWOnline.ipa
