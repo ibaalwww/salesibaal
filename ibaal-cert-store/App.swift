@@ -142,6 +142,33 @@ class BatchAdminFeeManager {
     }
 }
 
+// MARK: - Manajer Kapasitas Slot Kloter Custom
+class BatchCapacityManager {
+    static let shared = BatchCapacityManager()
+    private let key = "saved_batch_capacities"
+
+    func getCapacity(for batch: Int) -> Int {
+        let dict = UserDefaults.standard.dictionary(forKey: key) as? [String: Int] ?? [:]
+        // Default kapasitas fleksibel: jika belum diatur, default ke 20 slot
+        return dict[String(batch)] ?? 20
+    }
+
+    func setCapacity(for batch: Int, capacity: Int) {
+        var dict = UserDefaults.standard.dictionary(forKey: key) as? [String: Int] ?? [:]
+        dict[String(batch)] = max(1, capacity) // Minimal 1 slot
+        UserDefaults.standard.set(dict, forKey: key)
+    }
+    
+    func exportAll() -> [String: Int] {
+        return UserDefaults.standard.dictionary(forKey: key) as? [String: Int] ?? [:]
+    }
+    
+    func importAll(_ dict: [String: Int]) {
+        UserDefaults.standard.set(dict, forKey: key)
+        UserDefaults.standard.synchronize()
+    }
+}
+
 // MARK: - Manajer ZIP Sertifikat
 class CertStorageManager {
     static let shared = CertStorageManager()
@@ -185,13 +212,12 @@ class CertStorageManager {
     }
 }
 
-// MARK: - Jenis Sumber Cert (Disesuaikan dengan format JSON lama agar bisa restore)
+// MARK: - Jenis Sumber Cert
 enum CertSourceType: String, Codable, CaseIterable {
-    case reguler = "Kloter Reguler (5 Slot)"
+    case reguler = "Kloter Reguler"
     case manual = "Manual / Eceran"
     case trollstore = "TrollStore (Modal Rp 0)"
 }
-
 
 // MARK: - Model Data Penjualan
 struct SaleItem: Identifiable, Codable, Hashable {
@@ -277,6 +303,7 @@ struct BackupPayload: Codable {
     var items: [SaleItem]
     var batchModals: [String: Int]?
     var batchAdminFees: [String: Int]?
+    var batchCapacities: [String: Int]?
 }
 
 enum FilterGaransi: String, CaseIterable, Identifiable {
@@ -500,9 +527,9 @@ struct ContentView: View {
 
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-    // LOGIKA KAPASITAS KLOTER DINAMIS (Kloter 1-11 = 5 slot, Kloter 12+ = 20 slot)
+    // KAPASITAS KLOTER DINAMIS CUSTOM (Mengambil dari BatchCapacityManager)
     func capacityForBatch(_ batchNum: Int) -> Int {
-        return batchNum >= 12 ? 20 : 5
+        return BatchCapacityManager.shared.getCapacity(for: batchNum)
     }
 
     var activeBatchNumber: Int {
@@ -718,8 +745,8 @@ struct ContentView: View {
                                 showEditBatchModal = true
                             } label: {
                                 HStack(spacing: 10) {
-                                    Image(systemName: "dollarsign.circle.fill").foregroundColor(.orange)
-                                    Text("Ubah Modal & Fee Kloter Reguler")
+                                    Image(systemName: "slider.horizontal.3").foregroundColor(.orange)
+                                    Text("Ubah Slot, Modal & Fee Kloter Reguler")
                                         .font(.mali(13))
                                         .foregroundColor(.white)
                                 }
@@ -758,7 +785,7 @@ struct ContentView: View {
                             }
                         }
                         .padding(8)
-                        .frame(width: 260)
+                        .frame(width: 280)
                         .liquidGlass(cornerRadius: 16)
                         .padding(.leading, 14)
                         .padding(.top, 50)
@@ -804,11 +831,14 @@ struct ContentView: View {
         .sheet(isPresented: $showEditBatchModal) {
             EditBatchModalSheet(
                 batchNumber: activeBatchNumber,
+                currentCapacity: BatchCapacityManager.shared.getCapacity(for: activeBatchNumber),
                 currentModal: BatchModalManager.shared.getModal(for: activeBatchNumber),
                 currentAdminFee: BatchAdminFeeManager.shared.getFee(for: activeBatchNumber)
-            ) { updatedModal, updatedFee in
+            ) { updatedCapacity, updatedModal, updatedFee in
+                BatchCapacityManager.shared.setCapacity(for: activeBatchNumber, capacity: updatedCapacity)
                 BatchModalManager.shared.setModal(for: activeBatchNumber, modal: updatedModal)
                 BatchAdminFeeManager.shared.setFee(for: activeBatchNumber, fee: updatedFee)
+                recalculateAndSave()
                 forceRefresh = UUID()
             }
         }
@@ -941,7 +971,7 @@ struct ContentView: View {
 
                 Spacer()
 
-                Text(isManualOrTroll ? "\(count) Device" : "\(count)/\(maxS) Cert")
+                Text(isManualOrTroll ? "\(count) Device" : "\(count)/\(maxS) Slot")
                     .font(.mali(12))
                     .foregroundColor(isManualOrTroll ? .orange : (count >= maxS ? .green : .gray))
             }
@@ -1010,7 +1040,7 @@ struct ContentView: View {
                 HStack {
                     HStack(spacing: 5) {
                         Image(systemName: "cube.box.fill")
-                        Text("\(slotTerjualDiBatchAktif)/\(slotMaxAktif) Slot Terjual")
+                        Text("\(slotTerjualDiBatchAktif)/\(slotMaxAktif) Slot Terisi Custom")
                             .font(.mali(12))
                     }
                     .foregroundColor(slotTerjualDiBatchAktif >= slotMaxAktif ? .green : .white)
@@ -1030,7 +1060,7 @@ struct ContentView: View {
                 .frame(height: 6)
 
                 HStack {
-                    Text(slotTerjualDiBatchAktif >= slotMaxAktif ? "\(slotMaxAktif)/\(slotMaxAktif) Penuh! Kloter reguler berikutnya terbuka otomatis." : "Tersisa \(sisaSlotDiBatchAktif) slot di kloter reguler ini.")
+                    Text(slotTerjualDiBatchAktif >= slotMaxAktif ? "\(slotMaxAktif)/\(slotMaxAktif) Slot Penuh! Kloter reguler berikutnya terbuka otomatis." : "Tersisa \(sisaSlotDiBatchAktif) slot di kloter ini.")
                         .font(.mali(10))
                         .foregroundColor(.gray)
                     Spacer()
@@ -1377,8 +1407,9 @@ struct ContentView: View {
         do {
             let modals = BatchModalManager.shared.exportAll()
             let fees = BatchAdminFeeManager.shared.exportAll()
+            let capacities = BatchCapacityManager.shared.exportAll()
             
-            let payload = BackupPayload(items: items, batchModals: modals, batchAdminFees: fees)
+            let payload = BackupPayload(items: items, batchModals: modals, batchAdminFees: fees, batchCapacities: capacities)
             
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
@@ -1414,8 +1445,11 @@ struct ContentView: View {
                 if let fees = payload.batchAdminFees {
                     BatchAdminFeeManager.shared.importAll(fees)
                 }
+                if let caps = payload.batchCapacities {
+                    BatchCapacityManager.shared.importAll(caps)
+                }
                 recalculateAndSave()
-                alertMessage = "Sukses memulihkan \(payload.items.count) transaksi & Data Modal Kloter."
+                alertMessage = "Sukses memulihkan \(payload.items.count) transaksi & Data Custom Kloter."
             } else if let im = try? JSONDecoder().decode([SaleItem].self, from: data) {
                 items = im
                 recalculateAndSave()
@@ -1440,7 +1474,7 @@ struct ContentView: View {
         forceRefresh = UUID()
     }
 
-    // REKALKULASI KLOTER DINAMIS (Kloter 1-11 = 5 slot, Kloter 12+ = 20 slot)
+    // REKALKULASI KLOTER DINAMIS BERDASARKAN KAPASITAS CUSTOM TIAP KLOTER
     private func recalculateAndSave() {
         let regularItemsAscending = items.filter { $0.currentSourceType == .reguler }.sorted { $0.tanggalDaftar < $1.tanggalDaftar }
         var updatedRegular: [SaleItem] = []
@@ -1861,14 +1895,16 @@ struct SaleFormSheet: View {
     }
 }
 
-// MARK: - Lembar Ubah Modal & Fee Admin
+// MARK: - Lembar Ubah Kapasitas, Modal & Fee Admin Kloter
 struct EditBatchModalSheet: View {
     @Environment(\.dismiss) var dismiss
     var batchNumber: Int
+    var currentCapacity: Int
     var currentModal: Int
     var currentAdminFee: Int
-    var onSave: (Int, Int) -> Void
+    var onSave: (Int, Int, Int) -> Void
 
+    @State private var capacityText = ""
     @State private var modalText = ""
     @State private var adminFeeText = ""
 
@@ -1878,6 +1914,20 @@ struct EditBatchModalSheet: View {
                 Color.black.ignoresSafeArea()
 
                 VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("KAPASITAS SLOT KLOTER #\(batchNumber)").font(.mali(12)).foregroundColor(.green)
+                        TextField("20", text: $capacityText)
+                            .keyboardType(.numberPad)
+                            .font(.mali(16))
+                            .foregroundColor(.green)
+                            .padding(10)
+                            .background(Color.white.opacity(0.06))
+                            .cornerRadius(10)
+                        Text("Atur jumlah maksimal member dalam kloter ini (misal: 10, 15, 25 slot).").font(.mali(10)).foregroundColor(.gray)
+                    }
+                    .padding(12)
+                    .liquidGlass(cornerRadius: 16)
+
                     VStack(alignment: .leading, spacing: 6) {
                         Text("MODAL KLOTER #\(batchNumber)").font(.mali(12)).foregroundColor(.cyan)
                         TextField("0", text: $modalText)
@@ -1908,7 +1958,7 @@ struct EditBatchModalSheet: View {
                 }
                 .padding()
             }
-            .navigationTitle("Modal & Fee #\(batchNumber)")
+            .navigationTitle("Pengaturan Kloter #\(batchNumber)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -1916,7 +1966,7 @@ struct EditBatchModalSheet: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Simpan") {
-                        onSave(Int(modalText) ?? 0, Int(adminFeeText) ?? 0)
+                        onSave(Int(capacityText) ?? 20, Int(modalText) ?? 0, Int(adminFeeText) ?? 0)
                         dismiss()
                     }
                     .font(.mali(15))
@@ -1924,6 +1974,7 @@ struct EditBatchModalSheet: View {
                 }
             }
             .onAppear {
+                capacityText = String(currentCapacity)
                 modalText = String(currentModal)
                 adminFeeText = String(currentAdminFee)
             }
@@ -1945,9 +1996,8 @@ struct BatchHistorySheet: View {
     @State private var forceRefresh = UUID()
     @State private var batchToEdit: EditableBatch? = nil
 
-    // Helper kapasitas untuk arsip
     func capacityForBatch(_ batchNum: Int) -> Int {
-        return batchNum >= 12 ? 20 : 5
+        return BatchCapacityManager.shared.getCapacity(for: batchNum)
     }
 
     var completedBatches: [Int] {
@@ -2035,8 +2085,8 @@ struct BatchHistorySheet: View {
                                             batchToEdit = EditableBatch(id: b)
                                         } label: {
                                             HStack(spacing: 4) {
-                                                Image(systemName: "pencil")
-                                                Text("Edit Modal")
+                                                Image(systemName: "slider.horizontal.3")
+                                                Text("Atur Kloter")
                                             }
                                             .font(.mali(10))
                                             .padding(.horizontal, 8)
@@ -2057,6 +2107,10 @@ struct BatchHistorySheet: View {
                                 
                                 HStack(alignment: .top) {
                                     VStack(alignment: .leading, spacing: 5) {
+                                        Text("Kapasitas Slot: \(maxS) Slot")
+                                            .font(.mali(11))
+                                            .foregroundColor(.gray)
+
                                         Text("Modal: \(hideFinancials ? "••••" : AppFormatters.idr(modal))")
                                             .font(.mali(12))
                                             .foregroundColor(.orange)
@@ -2178,9 +2232,11 @@ struct BatchHistorySheet: View {
             .sheet(item: $batchToEdit) { eb in
                 EditBatchModalSheet(
                     batchNumber: eb.id,
+                    currentCapacity: BatchCapacityManager.shared.getCapacity(for: eb.id),
                     currentModal: BatchModalManager.shared.getModal(for: eb.id),
                     currentAdminFee: BatchAdminFeeManager.shared.getFee(for: eb.id)
-                ) { updatedModal, updatedFee in
+                ) { updatedCapacity, updatedModal, updatedFee in
+                    BatchCapacityManager.shared.setCapacity(for: eb.id, capacity: updatedCapacity)
                     BatchModalManager.shared.setModal(for: eb.id, modal: updatedModal)
                     BatchAdminFeeManager.shared.setFee(for: eb.id, fee: updatedFee)
                     forceRefresh = UUID()
