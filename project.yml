@@ -1,29 +1,42 @@
-name: ibaal-cert-store
+name: NFSMWOnline
 options:
   bundleIdPrefix: com.ibaal
   deploymentTarget:
     iOS: "15.0"
-  xcodeVersion: "15.0"
-
-settings:
-  base:
-    PRODUCT_NAME: "ibaal cert store"
-    SWIFT_VERSION: "5.0"
-    TARGETED_DEVICE_FAMILY: "1"
-
 targets:
-  ibaal-cert-store:
+  NFSMWOnline:
     type: application
     platform: iOS
     deploymentTarget: "15.0"
     sources:
-      - path: ibaal-cert-store
+      - path: ConsoleApp
     info:
-      path: ibaal-cert-store/Info.plist
+      path: ConsoleApp/Info.plist
+      properties:
+        CFBundleDisplayName: "NFS MW Online"
+        LSRequiresIPhoneOS: true
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
     settings:
       base:
-        INFOPLIST_FILE: ibaal-cert-store/Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.ibaal.store
+        PRODUCT_NAME: "NFSMWOnline"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.ibaal.nfsmwo.game"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_ALLOWED: "NO"
+        GENERATE_INFOPLIST_FILE: "NO"
+        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.0"
+        SWIFT_OPTIMIZATION_LEVEL: "-Onone"
