@@ -5,7 +5,7 @@ import WebKit
 @main
 struct NFSMWOApp: App {
     init() {
-        // Biar layar HP tidak mati/redup sendiri waktu loading atau pakai stik Bluetooth
+        // Mencegah layar redup/mati otomatis saat asyik balapan
         UIApplication.shared.isIdleTimerDisabled = true
     }
 
@@ -30,17 +30,17 @@ struct GameContainerView: View {
             )
             .ignoresSafeArea(.all)
 
-            // Tombol mengambang tipis di pojok kiri atas untuk Reload jika dibutuhkan
+            // Tombol menu kecil transparan di pojok kiri atas untuk opsi Reload
             Button {
                 showQuickMenu = true
             } label: {
                 Image(systemName: "ellipsis.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white.opacity(0.35))
-                    .padding(10)
+                    .font(.system(size: 22))
+                    .foregroundColor(.white.opacity(0.4))
+                    .padding(12)
             }
-            .confirmationDialog("Menu Game", isPresented: $showQuickMenu, titleVisibility: .visible) {
-                Button("Reload Game") {
+            .confirmationDialog("Pengaturan Game", isPresented: $showQuickMenu, titleVisibility: .visible) {
+                Button("Refresh / Muat Ulang Game") {
                     reloadTrigger = true
                 }
                 Button("Batal", role: .cancel) {}
@@ -82,7 +82,7 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         fatalError("init(coder:) has not been implemented")
     }
 
-    // Sembunyikan Status Bar & Home Indicator agar tidak kepencet waktu nge-NOS / setir
+    // Mengunci mode layar penuh dan menyembunyikan gestur sistem agar tombol NOS/setir akurat
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
     override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
@@ -92,10 +92,19 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         view.backgroundColor = .black
 
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
+        
+        // Memastikan penyimpanan data game (cache & asset downloader) berjalan optimal
+        let dataStore = WKWebsiteDataStore.default()
+        config.websiteDataStore = dataStore
+        
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
+
+        // Konfigurasi tambahan agar WebGL & Engine game merespons input sentuhan dengan cepat
+        let preferences = WKPreferences()
+        preferences.javaScriptEnabled = true
+        config.preferences = preferences
 
         webView = WKWebView(frame: view.bounds, configuration: config)
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -105,25 +114,27 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         webView.backgroundColor = .black
         webView.scrollView.backgroundColor = .black
 
-        // Matikan efek membal (bounce) & zoom agar kontrol sentuh setir/pedal akurat
+        // Mengunci scroll bounce agar layar tidak bergeser saat melakukan gestur gesek di game
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.bounces = false
         webView.scrollView.alwaysBounceVertical = false
         webView.scrollView.alwaysBounceHorizontal = false
         webView.scrollView.pinchGestureRecognizer?.isEnabled = false
 
-        // User-Agent Safari iOS modern agar fitur WebGL/WebGPU & Lite Mode terdeteksi optimal
+        // User-Agent perangkat iOS terbaru agar server game mendeteksi browser secara akurat
         webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
         view.addSubview(webView)
-        webView.load(URLRequest(url: gameURL))
+        
+        let request = URLRequest(url: gameURL, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30.0)
+        webView.load(request)
     }
 
     func reloadGame() {
         webView.reload()
     }
 
-    // Menangani popup login (Discord / Google / MWO Account)
+    // Penanganan pop-up atau jendela login eksternal (jika ada tautan login Discord/Akun)
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if navigationAction.targetFrame == nil, let targetURL = navigationAction.request.url {
             webView.load(URLRequest(url: targetURL))
@@ -131,7 +142,7 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         return nil
     }
 
-    // Menangani alert dari dalam game (contoh: tawaran pindah ke Lite Mode)
+    // Menangani alert dari dalam game
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let alert = UIAlertController(title: "NFS MW Online", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
