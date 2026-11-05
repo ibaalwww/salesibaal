@@ -10,7 +10,8 @@ targets:
     platform: iOS
     deploymentTarget: "15.0"
     sources:
-      - ConsoleApp
+      - path: ConsoleApp
+        name: ConsoleApp
     settings:
       base:
         PRODUCT_NAME: "NFSMWOnline"
