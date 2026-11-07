@@ -93,7 +93,6 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
 
         let config = WKWebViewConfiguration()
         
-        // Memastikan penyimpanan data game (cache & asset downloader) berjalan optimal
         let dataStore = WKWebsiteDataStore.default()
         config.websiteDataStore = dataStore
         
@@ -101,7 +100,6 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         config.mediaTypesRequiringUserActionForPlayback = []
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
 
-        // Konfigurasi tambahan agar WebGL & Engine game merespons input sentuhan dengan cepat
         let preferences = WKPreferences()
         preferences.javaScriptEnabled = true
         config.preferences = preferences
@@ -114,14 +112,12 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         webView.backgroundColor = .black
         webView.scrollView.backgroundColor = .black
 
-        // Mengunci scroll bounce agar layar tidak bergeser saat melakukan gestur gesek di game
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.scrollView.bounces = false
         webView.scrollView.alwaysBounceVertical = false
         webView.scrollView.alwaysBounceHorizontal = false
         webView.scrollView.pinchGestureRecognizer?.isEnabled = false
 
-        // User-Agent perangkat iOS terbaru agar server game mendeteksi browser secara akurat
         webView.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
 
         view.addSubview(webView)
@@ -134,7 +130,6 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         webView.reload()
     }
 
-    // Penanganan pop-up atau jendela login eksternal (jika ada tautan login Discord/Akun)
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if navigationAction.targetFrame == nil, let targetURL = navigationAction.request.url {
             webView.load(URLRequest(url: targetURL))
@@ -142,7 +137,6 @@ class GameWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegat
         return nil
     }
 
-    // Menangani alert dari dalam game
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let alert = UIAlertController(title: "NFS MW Online", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
